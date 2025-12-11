@@ -7,6 +7,7 @@ import swup from "@swup/astro";
 import expressiveCode from "astro-expressive-code";
 import icon from "astro-icon";
 import { defineConfig } from "astro/config";
+
 import rehypeAutolinkHeadings from "rehype-autolink-headings";
 import rehypeComponents from "rehype-components"; /* Render the custom directive content */
 import rehypeKatex from "rehype-katex";
@@ -25,11 +26,15 @@ import { remarkReadingTime } from "./src/plugins/remark-reading-time.mjs";
 import { pluginCustomCopyButton } from "./src/plugins/expressive-code/custom-copy-button.js";
 
 // https://astro.build/config
+
+import decapCmsOauth from "astro-decap-cms-oauth";
+
+
 export default defineConfig({
 	site: "https://blog.thien.ac/",
 	base: "/",
 	trailingSlash: "always",
-	integrations: [
+	integrations: [decapCmsOauth()] [
 		tailwind({
 			nesting: true,
 		}),
