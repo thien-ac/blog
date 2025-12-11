@@ -1,0 +1,70 @@
+
+---
+/* Trang quản trị Decap CMS – manual init để ép backend GitHub + proxy OAuth */
+---
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Content Manager</title>
+  </head>
+  <body>
+    <script type="module">
+      // Nạp Decap CMS (package) và khởi tạo thủ công
+      import CMS from 'decap-cms-app';
+
+      // ÉP Decap dùng cấu hình dưới, không auto-load config.yml
+      window.CMS_MANUAL_INIT = true;
+
+      CMS.init({
+        config: {
+          load_config_file: false, // không đọc từ <link>; dùng object dưới
+
+          backend: {
+            name: 'github',
+            repo: 'genkun/my-blog',
+            branch: 'main',
+            auth_endpoint: '/api/oauth',    // proxy OAuth Vercel bạn đã tạo
+          },
+
+          media_folder: 'src/assets/images',
+          public_folder: '/src/assets/images',
+
+          publish_mode: 'editorial_workflow',
+          editor: { visualEditing: true },
+
+          collections: [
+            {
+              name: 'blog',
+              label: 'Bài viết',
+              folder: 'src/content/posts',
+              create: true,
+              slug: '{{slug}}',
+              extension: 'md',
+              summary: '{{title}} — {{published}}',
+              view_filters: [{ label: 'Drafts', field: 'draft', pattern: true }],
+              view_groups: [{ label: 'Năm đăng', field: 'published', pattern: '\\d{4}' }],
+              fields: [
+                { label: 'Title',        name: 'title',      widget: 'string' },
+                { label: 'Description',  name: 'description',widget: 'text', required: false },
+                { label: 'Publish Date', name: 'published',  widget: 'datetime', format: 'YYYY-MM-DD' },
+                { label: 'Updated',      name: 'updated',    widget: 'datetime', format: 'YYYY-MM-DD', required: false },
+                { label: 'Cover Image',  name: 'image',      widget: 'image',    required: false },
+                { label: 'Tags',         name: 'tags',       widget: 'list',     required: false },
+                { label: 'Category',     name: 'category',   widget: 'string',   required: false },
+                { label: 'Author',       name: 'author',     widget: 'string',   default: 'hopthurac' },
+                { label: 'Slug (URL)',   name: 'slug',       widget: 'string' },
+                { label: 'Draft',        name: 'draft',      widget: 'boolean',  default: false },
+                { label: 'Lang',         name: 'lang',       widget: 'string',   default: 'vi' },
+                { label: 'Canonical URL',name: 'canonical',  widget: 'string',   required: false },
+                { label: 'Body (Markdown)', name: 'body',    widget: 'markdown' },
+              ],
+            },
+          ],
+        },
+      });
+    </script>
+  </body>
+</html>
