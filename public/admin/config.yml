@@ -8,6 +8,7 @@ backend:
   name: github
   repo: genkun/my-blog
   branch: main
+  auth_endpoint: /api/oauth
   commit_messages:
     create: "Create {{collection}} \"{{slug}}\""
     update: "Update {{collection}} \"{{slug}}\""
