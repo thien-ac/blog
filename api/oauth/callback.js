@@ -1,5 +1,4 @@
 
-// pages/api/oauth/callback.js
 export const config = { runtime: 'nodejs' };
 
 export default async function handler(req, res) {
@@ -26,13 +25,11 @@ export default async function handler(req, res) {
 
   const redirect_uri = `${siteUrl}/api/oauth/callback`;
 
-  // Đổi code lấy access_token từ GitHub
   const tokenResp = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: { Accept: 'application/json' },
     body: new URLSearchParams({ client_id, client_secret, code, redirect_uri }),
   });
-
   const tokenData = await tokenResp.json();
 
   if (tokenData.error) {
@@ -45,6 +42,6 @@ export default async function handler(req, res) {
   const token = tokenData.access_token || tokenData.token;
   if (!token) return res.status(400).json({ error: 'NoAccessToken', details: tokenData });
 
-  // Decap CMS mong đợi { token: "<access_token>" }
+  // Decap cần { token: "<access_token>" }
   return res.json({ token });
 }
