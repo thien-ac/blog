@@ -1,4 +1,5 @@
 
+// /api/oauth/callback.js (Vercel Serverless Function)
 export const config = { runtime: 'nodejs' };
 
 export default async function handler(req, res) {
@@ -42,27 +43,27 @@ export default async function handler(req, res) {
   const token = tokenData.access_token || tokenData.token;
   if (!token) return res.status(400).json({ error: 'NoAccessToken', details: tokenData });
 
-  // Nếu Decap mở trong popup, gửi token về cửa sổ cha và đóng popup
-  const target = siteUrl || '*';
+  // Trả về HTML, postMessage token cho cửa sổ cha và đóng popup
+  const origin = siteUrl; // nên là domain chính, KHÔNG dùng '*'
+  const payload = JSON.stringify({ token, state });
+
   const html = `<!doctype html>
   <html><head><meta charset="utf-8"><title>Authenticating…</title></head>
   <body>
     <script>
       (function() {
-        var token = ${JSON.stringify(token)};
+        var data = ${payload};
         try {
-          // Gửi token về cửa sổ cha
           if (window.opener) {
-            window.opener.postMessage({ token: token }, '${target}');
+            window.opener.postMessage(data, '${origin}');
           } else if (window.parent && window.parent !== window) {
-            window.parent.postMessage({ token: token }, '${target}');
+            window.parent.postMessage(data, '${origin}');
           }
         } catch (e) {}
-        // Tự động đóng popup sau khi gửi
         setTimeout(function(){ window.close(); }, 100);
       })();
     </script>
-    <p>Đăng nhập thành công. Bạn có thể đóng cửa sổ này.</p>
+    <p>Đăng nhập thành công. Cửa sổ sẽ tự đóng.</p>
   </body></html>`;
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
