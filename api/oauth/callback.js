@@ -18,7 +18,7 @@ export default async function handler(req, res) {
     });
   }
 
-  const { code } = req.query;
+  const { code, state } = req.query;
   if (!code) {
     return res.status(400).json({ error: 'MissingCode', message: 'OAuth "code" is required' });
   }
@@ -42,6 +42,29 @@ export default async function handler(req, res) {
   const token = tokenData.access_token || tokenData.token;
   if (!token) return res.status(400).json({ error: 'NoAccessToken', details: tokenData });
 
-  // Decap cần { token: "<access_token>" }
-  return res.json({ token });
+  // Nếu Decap mở trong popup, gửi token về cửa sổ cha và đóng popup
+  const target = siteUrl || '*';
+  const html = `<!doctype html>
+  <html><head><meta charset="utf-8"><title>Authenticating…</title></head>
+  <body>
+    <script>
+      (function() {
+        var token = ${JSON.stringify(token)};
+        try {
+          // Gửi token về cửa sổ cha
+          if (window.opener) {
+            window.opener.postMessage({ token: token }, '${target}');
+          } else if (window.parent && window.parent !== window) {
+            window.parent.postMessage({ token: token }, '${target}');
+          }
+        } catch (e) {}
+        // Tự động đóng popup sau khi gửi
+        setTimeout(function(){ window.close(); }, 100);
+      })();
+    </script>
+    <p>Đăng nhập thành công. Bạn có thể đóng cửa sổ này.</p>
+  </body></html>`;
+
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  return res.status(200).send(html);
 }
