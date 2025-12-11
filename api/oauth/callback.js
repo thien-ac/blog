@@ -24,10 +24,8 @@ export default async function handler(req, res) {
     return res.status(400).json({ error: 'MissingCode', message: 'OAuth "code" is required' });
   }
 
-  // redirect_uri PHẢI khớp với Authorization callback URL trong GitHub OAuth App
   const redirect_uri = `${siteUrl}/api/oauth/callback`;
 
-  // 1) Đổi code lấy access_token từ GitHub
   const tokenResp = await fetch('https://github.com/login/oauth/access_token', {
     method: 'POST',
     headers: { Accept: 'application/json' },
@@ -35,7 +33,6 @@ export default async function handler(req, res) {
   });
 
   const tokenData = await tokenResp.json();
-
   if (tokenData.error) {
     return res.status(400).json({
       error: tokenData.error,
@@ -46,45 +43,68 @@ export default async function handler(req, res) {
   const token = tokenData.access_token || tokenData.token;
   if (!token) return res.status(400).json({ error: 'NoAccessToken', details: tokenData });
 
-  // 2) Chuẩn hoá payload theo format mà Decap CMS chờ:
-  //    'authorization:github:success:<JSON>'
-  //    JSON nên có ít nhất { token }, tuỳ biến thêm provider/backend nếu muốn.
-  const content = {
-    token,
-    provider: 'github',
-    backend: 'github',
-    state, // tuỳ chọn: phục vụ kiểm tra CSRF phía client nếu bạn có lưu state
-  };
+  // Content mà CMS cần
+  const content = { token, provider: 'github', backend: 'github', state };
 
-  const message = `authorization:github:success:${JSON.stringify(content)}`;
+  // Hai format message thường gặp
+  const msgDecap   = `authorization:github:success:${JSON.stringify(content)}`;
+  const msgNetlify = `netlify-cms-oauth-provider:${JSON.stringify(content)}`;
 
-  // Lưu ý: target origin nên là domain trang admin để an toàn.
-  // Nếu bạn cần linh hoạt trong thử nghiệm, có thể dùng '*', nhưng khuyến nghị là siteUrl.
-  const targetOrigin = siteUrl;
+  // Ưu tiên gửi về đúng origin của trang admin
+  const safeOrigin = siteUrl;
 
   const html = `<!doctype html>
 <html>
 <head><meta charset="utf-8"><title>Authenticating…</title></head>
 <body>
-  <p>Đăng nhập thành công. Cửa sổ sẽ tự đóng…</p>
+  <p>Đăng nhập thành công. Đang chuyển về CMS…</p>
   <script>
     (function() {
-      var msg = ${JSON.stringify(message)};
-      var origin = ${JSON.stringify(targetOrigin)};
+      var msg1 = ${JSON.stringify(msgDecap)};
+      var msg2 = ${JSON.stringify(msgNetlify)};
+      var origin = ${JSON.stringify(safeOrigin)};
 
-      try {
-        if (window.opener && !window.opener.closed && typeof window.opener.postMessage === 'function') {
-          window.opener.postMessage(msg, origin);
-        } else if (window.parent && window.parent !== window && typeof window.parent.postMessage === 'function') {
-          window.parent.postMessage(msg, origin);
+      function tryPostMessage(target) {
+        try {
+          if (target && typeof target.postMessage === 'function') {
+            // Gửi 2 thông điệp để tối đa khả năng CMS bắt được
+            target.postMessage(msg1, origin);
+            target.postMessage(msg2, origin);
+            return true;
+          }
+        } catch (e) {
+          console.error('postMessage error:', e);
         }
-      } catch (e) {
-        // để debug nếu cần
-        console.error('postMessage error:', e);
+        return false;
       }
 
-      // Đợi một chút cho CMS xử lý rồi đóng popup
-      setTimeout(function(){ window.close(); }, 500);
+      var posted = false;
+      // 1) window.opener trước
+      if (window.opener && !window.opener.closed) {
+        posted = tryPostMessage(window.opener);
+      }
+      // 2) nếu không, thử window.parent (trường hợp mở trong iframe)
+      if (!posted && window.parent && window.parent !== window) {
+        posted = tryPostMessage(window.parent);
+      }
+
+      // 3) Nếu vẫn không được, thử gửi với targetOrigin='*' (chỉ để TEST)
+      if (!posted) {
+        try {
+          if (window.opener && !window.opener.closed) {
+            window.opener.postMessage(msg1, '*');
+            window.opener.postMessage(msg2, '*');
+            posted = true;
+          } else if (window.parent && window.parent !== window) {
+            window.parent.postMessage(msg1, '*');
+            window.parent.postMessage(msg2, '*');
+            posted = true;
+          }
+        } catch (e) {}
+      }
+
+      // Cho CMS thời gian xử lý rồi đóng popup
+      setTimeout(function(){ window.close(); }, 800);
     })();
   </script>
 </body>
