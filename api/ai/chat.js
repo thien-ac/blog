@@ -1,12 +1,13 @@
 // /api/ai/chat.js
 export const config = { runtime: 'nodejs' };
 
-import fetch from 'node-fetch';
+// Use global fetch when available; fall back to node-fetch dynamically if not present
 
 async function callOpenAI(messages, model) {
   const key = process.env.OPENAI_API_KEY;
   if (!key) throw new Error('OPENAI_API_KEY not set');
-  const resp = await fetch('https://api.openai.com/v1/chat/completions', {
+  const fetchFn = globalThis.fetch || (await import('node-fetch')).then(m => m.default);
+  const resp = await fetchFn('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
     body: JSON.stringify({ model: model || process.env.OPENAI_MODEL || 'gpt-4o-mini', messages, max_tokens: 1200 })

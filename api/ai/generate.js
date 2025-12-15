@@ -6,10 +6,18 @@ import path from 'path';
 
 async function fetchJson(url, options = {}) {
   const res = await fetch(url, options);
-  const text = await res.text();
-  let json;
-  try { json = JSON.parse(text); } catch { json = text; }
-  return { ok: res.ok, status: res.status, body: json };
+  let body;
+  try {
+    if (res && typeof res.json === 'function') {
+      body = await res.json();
+    } else {
+      const text = await res.text();
+      try { body = JSON.parse(text); } catch { body = text; }
+    }
+  } catch (e) {
+    try { const text = await res.text(); body = JSON.parse(text); } catch { body = text || null; }
+  }
+  return { ok: res.ok, status: res.status, body };
 }
 
 function slugify(s) {
