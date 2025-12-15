@@ -155,6 +155,52 @@
           }, 1000);
         }
       })();
+
+      // Additional diagnostic: periodically log CMS availability and methods
+      (function () {
+        var seen = false;
+        var d = setInterval(function () {
+          if (window.CMS) {
+            if (!seen) console.info('[OAuth] window.CMS detected:', Object.keys(window.CMS));
+            seen = true;
+
+            // If authCallback exists, try delivering again (harmless)
+            if (typeof window.CMS.authCallback === 'function') {
+              console.info('[OAuth] CMS.authCallback found; attempting delivery of stored payload');
+              try { window._decap_tryDeliverOAuthPayload && window._decap_tryDeliverOAuthPayload(); } catch (e) { console.error('[OAuth] Delivery attempt threw', e); }
+              clearInterval(d);
+              return;
+            }
+
+            // If authCallback is missing, look for other potential hooks (best-effort)
+            var alt = ['auth', 'authenticate', 'login', 'setUser', 'handleAuth'];
+            for (var i = 0; i < alt.length; i++) {
+              var name = alt[i];
+              if (typeof window.CMS[name] === 'function') {
+                console.warn('[OAuth] Found alternative auth method on CMS:', name, '— attempting handshake');
+                try {
+                  var raw = localStorage.getItem('decap_oauth_payload');
+                  var p = raw ? JSON.parse(raw) : null;
+                  if (p) {
+                    window.CMS[name](p);
+                    console.info('[OAuth] Called CMS.' + name + ' with payload');
+                    localStorage.removeItem('decap_oauth_payload');
+                  }
+                } catch (e) { console.error('[OAuth] Fallback call threw:', e); }
+                clearInterval(d);
+                return;
+              }
+            }
+          }
+          // stop after 30s
+          if (seen === false && typeof window._decap_cms_poll_attempts === 'undefined') window._decap_cms_poll_attempts = 0;
+          window._decap_cms_poll_attempts = (window._decap_cms_poll_attempts || 0) + 1;
+          if (window._decap_cms_poll_attempts >= 30) {
+            console.warn('[OAuth] CMS not exposing authCallback after timeout');
+            clearInterval(d);
+          }
+        }, 1000);
+      })();
     </script>
 
     <script>
