@@ -32,7 +32,7 @@
           }
         } else if (data.startsWith(P3) || (data.startsWith(P1) && data.indexOf('{') === -1)) {
           var token = data.substring(data.lastIndexOf(':') + 1).trim();
-          localStorage          localStorage.setItem('decap_token', token);
+                localStorage.setItem('decap_token', token);
           if (window.CMS && typeof window.CMS.authCallback === 'function') {
             window.CMS.authCallback({ token, provider: 'github', backend: 'github' });
           }
