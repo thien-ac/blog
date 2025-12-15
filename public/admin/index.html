@@ -54,6 +54,8 @@
                   // Dự phòng: lưu payload để CMS đọc sau khi init
                   console.info('[OAuth] Storing payload in localStorage for later', payload);
                   localStorage.setItem('decap_oauth_payload', JSON.stringify(payload));
+                  // Try delivering immediately in case CMS becomes ready now
+                  if (window._decap_tryDeliverOAuthPayload) window._decap_tryDeliverOAuthPayload();
                 }
 
                 // Điều hướng vào dashboard
@@ -80,6 +82,7 @@
               } else {
                 console.info('[OAuth] Storing token payload in localStorage for later');
                 localStorage.setItem('decap_oauth_payload', JSON.stringify(payload));
+                if (window._decap_tryDeliverOAuthPayload) window._decap_tryDeliverOAuthPayload();
               }
 
               // Điều hướng vào dashboard
@@ -108,14 +111,16 @@
       // sent message before CMS set authCallback), deliver any stored payload
       // from localStorage to `window.CMS.authCallback` when CMS becomes ready.
       (function () {
-        function tryDeliverStoredPayload() {
+        // Expose deliver function so message handler can call it immediately
+        // after storing a payload, and so `storage` events can trigger it.
+        window._decap_tryDeliverOAuthPayload = function tryDeliverStoredPayload() {
           try {
             var raw = localStorage.getItem('decap_oauth_payload');
             if (!raw) return false;
             var payload = JSON.parse(raw);
             if (window.CMS && typeof window.CMS.authCallback === 'function') {
               console.info('[OAuth] Delivering stored payload to CMS.authCallback', payload);
-              window.CMS.authCallback(payload);
+              try { window.CMS.authCallback(payload); } catch (e) { console.error('[OAuth] CMS.authCallback threw', e); }
               localStorage.removeItem('decap_oauth_payload');
               return true;
             }
@@ -125,16 +130,25 @@
             console.error('[OAuth] Error delivering stored payload:', e);
             return false;
           }
-        }
+        };
+
+        // Listen for storage events from the popup (fires in this window when
+        // another window on the same origin writes to localStorage).
+        window.addEventListener('storage', function (e) {
+          if (e && e.key === 'decap_oauth_payload') {
+            console.info('[OAuth] storage event: decap_oauth_payload changed, attempting delivery');
+            window._decap_tryDeliverOAuthPayload();
+          }
+        });
 
         // Try immediately and poll while CMS initializes. Use a longer window
         // because Decap may take a while to initialize (especially on slow
         // networks or with large builds). Poll up to ~30s.
-        if (!tryDeliverStoredPayload()) {
+        if (!window._decap_tryDeliverOAuthPayload()) {
           var attempts = 0;
           var t = setInterval(function () {
             attempts++;
-            if (tryDeliverStoredPayload() || attempts >= 30) {
+            if (window._decap_tryDeliverOAuthPayload() || attempts >= 30) {
               if (attempts >= 30) console.warn('[OAuth] CMS did not become ready within timeout');
               clearInterval(t);
             }
