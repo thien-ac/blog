@@ -54,6 +54,15 @@
                   // Dự phòng: lưu payload để CMS đọc sau khi init
                   console.info('[OAuth] Storing payload in localStorage for later', payload);
                   localStorage.setItem('decap_oauth_payload', JSON.stringify(payload));
+
+                  // ALSO: write the user object expected by Decap's LocalStorageAuthStore
+                  // so that the CMS can restore the session on next load.
+                  try {
+                    var userObj = Object.assign({}, payload, { backendName: 'github' });
+                    localStorage.setItem('decap-cms-user', JSON.stringify(userObj));
+                    console.info('[OAuth] Also storing decap-cms-user for CMS restore', userObj);
+                  } catch (e) { console.warn('[OAuth] Failed writing decap-cms-user', e); }
+
                   // Try delivering immediately in case CMS becomes ready now
                   if (window._decap_tryDeliverOAuthPayload) window._decap_tryDeliverOAuthPayload();
                 }
@@ -74,11 +83,18 @@
               console.info('[OAuth] Received token, saving to localStorage (decap_token)');
               localStorage.setItem('decap_token', token);
 
+              // ALSO: store the minimal user object expected by Decap
+              try {
+                var userObj = { token: token, backendName: 'github' };
+                localStorage.setItem('decap-cms-user', JSON.stringify(userObj));
+                console.info('[OAuth] Also storing decap-cms-user for CMS restore', userObj);
+              } catch (e) { console.warn('[OAuth] Failed writing decap-cms-user', e); }
+
               // Tạo payload JSON tối thiểu và gửi cho Decap nếu có sẵn
               var payload = { token: token, provider: 'github', backend: 'github' };
               if (window.CMS && typeof window.CMS.authCallback === 'function') {
                 console.info('[OAuth] Sending token payload to CMS.authCallback');
-                               window.CMS.authCallback(payload);
+                window.CMS.authCallback(payload);
               } else {
                 console.info('[OAuth] Storing token payload in localStorage for later');
                 localStorage.setItem('decap_oauth_payload', JSON.stringify(payload));
@@ -118,12 +134,23 @@
             var raw = localStorage.getItem('decap_oauth_payload');
             if (!raw) return false;
             var payload = JSON.parse(raw);
+
+            // If CMS exposes the expected auth callback, call it first
             if (window.CMS && typeof window.CMS.authCallback === 'function') {
               console.info('[OAuth] Delivering stored payload to CMS.authCallback', payload);
               try { window.CMS.authCallback(payload); } catch (e) { console.error('[OAuth] CMS.authCallback threw', e); }
               localStorage.removeItem('decap_oauth_payload');
               return true;
             }
+
+            // If authCallback is not available, ensure the Decap-local-storage
+            // user key is present so that the CMS will restore the user on load.
+            try {
+              var userObj = Object.assign({}, payload.token ? { token: payload.token } : payload, { backendName: 'github' });
+              localStorage.setItem('decap-cms-user', JSON.stringify(userObj));
+              console.info('[OAuth] Wrote decap-cms-user for CMS restore', userObj);
+            } catch (e) { console.warn('[OAuth] Failed to write decap-cms-user', e); }
+
             console.debug('[OAuth] Stored payload present but CMS not ready yet');
             return false;
           } catch (e) {
@@ -234,7 +261,8 @@
           function refreshInfo() {
             var payload = localStorage.getItem('decap_oauth_payload');
             var token = localStorage.getItem('decap_token');
-            info.textContent = 'payload: ' + (payload || '(none)') + '\n' + 'token: ' + (token || '(none)') + '\n' + 'cookie: ' + (document.cookie || '(none)');
+            var user = localStorage.getItem('decap-cms-user');
+            info.textContent = 'payload: ' + (payload || '(none)') + '\n' + 'token: ' + (token || '(none)') + '\n' + 'decap-cms-user: ' + (user || '(none)') + '\n' + 'cookie: ' + (document.cookie || '(none)');
           }
 
           btn.addEventListener('click', function () {
@@ -255,6 +283,7 @@
           clearBtn.addEventListener('click', function () {
             localStorage.removeItem('decap_oauth_payload');
             localStorage.removeItem('decap_token');
+            localStorage.removeItem('decap-cms-user');
             refreshInfo();
             alert('Cleared payload/token from localStorage');
           });
