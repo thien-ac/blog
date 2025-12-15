@@ -11,70 +11,67 @@
     <link href="/admin/config.yml" type="text/yaml" rel="cms-config-url" />
 
     <!-- Listener nhận token từ popup OAuth và điều hướng vào dashboard -->
-    <script>
-      (function () {
-        var allowedOrigin = window.location.origin;
+   
+ 
+<script>
+  (function () {
+    var allowedOrigin = window.location.origin;
 
-        function handleOAuthMessage(event) {
-          try {
-            // Chỉ nhận từ đúng origin
-            if (event.origin !== allowedOrigin) {
-              console.warn('[OAuth] Bỏ qua message từ origin lạ:', event.origin);
-              return;
-            }
+    window.addEventListener('message', function (event) {
+      // Chỉ nhận từ đúng origin
+      if (event.origin !== allowedOrigin) return;
 
-            var data = String(event.data || '');
-            var P_JSON_1 = 'authorization:github:success:';      // Decap v3 chuẩn
-            var P_JSON_2 = 'netlify-cms-oauth-provider:';         // provider cũ
-            var P_TOKEN_1 = 'authorization:github:access_token:'; // biến thể token
-            var P_TOKEN_2 = 'authorization:github:success:';      // có thể gửi token chuỗi sau prefix
+      var data = event.data;
+      // Bỏ qua các message không phải chuỗi (Decap có thể post object)
+      if (typeof data !== 'string') return;
 
-            if (data.startsWith(P_JSON_1) || data.startsWith(P_JSON_2)) {
-              var s = data.indexOf('{');
-              if (s < 0) {
-                console.warn('[OAuth] Không tìm thấy JSON payload:', data);
-                return;
-              }
-              var payload = JSON.parse(data.slice(s));
-              console.log('[OAuth] Nhận payload JSON:', payload);
+      var P_JSON_1 = 'authorization:github:success:';      // Decap v3 "chuẩn" (JSON)
+      var P_JSON_2 = 'netlify-cms-oauth-provider:';         // Provider cũ (JSON)
+      var P_TOKEN_1 = 'authorization:github:access_token:'; // Token chuỗi
+      var P_TOKEN_2 = 'authorization:github:success:';      // Có thể gửi token chuỗi sau prefix
 
-              // Thông báo cho Decap (nếu CMS đã sẵn sàng)
-              if (window.CMS && typeof window.CMS.authCallback === 'function') {
-                window.CMS.authCallback(payload);
-              } else {
-                // Dự phòng: lưu để CMS đọc sau khi init
-                localStorage.setItem('decap_oauth_payload', JSON.stringify(payload));
-              }
-
-              // Điều hướng vào dashboard (đổi path nếu cần)
-              window.location.replace('/admin/#/');
-
-            } else if (data.startsWith(P_TOKEN_1) || (data.startsWith(P_TOKEN_2) && data.indexOf('{') === -1)) {
-              var token = data.substring(data.lastIndexOf(':') + 1).trim();
-              if (!token) {
-                console.warn('[OAuth] Token chuỗi rỗng:', data);
-                return;
-              }
-              console.log('[OAuth] Nhận token chuỗi:', token);
-
-              localStorage.setItem('decap_token', token);
-
-              if (window.CMS && typeof window.CMS.authCallback === 'function') {
-                window.CMS.authCallback({ token, provider: 'github', backend: 'github' });
-              }
-
-              window.location.replace('/admin/#/');
-            } else {
-              console.log('[OAuth] Message không khớp format:', data);
-            }
-          } catch (e) {
-            console.error('[OAuth] Lỗi xử lý message:', e);
+      // --- Nhánh JSON payload ---
+      if (data.startsWith(P_JSON_1) || data.startsWith(P_JSON_2)) {
+        var i = data.indexOf('{');
+        if (i >= 0) {
+          var payload = JSON.parse(data.slice(i));
+          // Báo cho Decap nếu đã sẵn sàng
+          if (window.CMS && typeof window.CMS.authCallback === 'function') {
+            window.CMS.authCallback(payload);
+          } else {
+            localStorage.setItem('decap_oauth_payload', JSON.stringify(payload));
           }
+          // Điều hướng vào dashboard
+          window.location.replace('/admin/#/');
+          return;
+        }
+        // Nếu không có '{', tiếp tục xuống nhánh token chuỗi
+      }
+
+      // --- Nhánh token chuỗi ---
+      if (data.startsWith(P_TOKEN_1) || (data.startsWith(P_TOKEN_2) && data.indexOf('{') === -1)) {
+        var token = data.substring(data.lastIndexOf(':') + 1).trim();
+        if (!token) return;
+
+        // Lưu token để CMS/ứng dụng đọc lại
+        localStorage.setItem('decap_token', token);
+
+        // Tạo payload JSON tối thiểu rồi gọi authCallback
+        var payload = { token: token, provider: 'github', backend: 'github' };
+        if (window.CMS && typeof window.CMS.authCallback === 'function') {
+          window.CMS.authCallback(payload);
+        } else {
+          localStorage.setItem('decap_oauth_payload', JSON.stringify(payload));
         }
 
-        // Gắn listener SỚM
-        window.addEventListener('message', handleOAuthMessage, false);
-      })();
+        // Điều hướng vào dashboard
+        window.location.replace('/admin/#/');
+      }
+
+      // Các message khác: bỏ qua
+    }, false);
+   })();
+
     </script>
 
     
