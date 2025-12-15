@@ -17,9 +17,11 @@ export default async function handler(req, res) {
   const origin = (req.query.origin && String(req.query.origin)) || siteUrl;
   const state  = randomState();
 
+  // Thêm flag Secure cho môi trường HTTPS; bỏ Secure khi dev trên HTTP (localhost)
+  var secureFlag = siteUrl && siteUrl.toLowerCase().startsWith('https://') ? 'Secure; ' : '';
   res.setHeader('Set-Cookie', [
-    `oauth_state=${encodeURIComponent(state)}; Path=/; Max-Age=600; SameSite=Lax; Secure; HttpOnly`,
-    `oauth_origin=${encodeURIComponent(origin)}; Path=/; Max-Age=600; SameSite=Lax; Secure; HttpOnly`,
+    `oauth_state=${encodeURIComponent(state)}; Path=/; Max-Age=600; SameSite=Lax; ${secureFlag}HttpOnly`,
+    `oauth_origin=${encodeURIComponent(origin)}; Path=/; Max-Age=600; SameSite=Lax; ${secureFlag}HttpOnly`,
   ]);
 
   const redirect_uri = `${siteUrl}/api/oauth/callback?origin=${encodeURIComponent(origin)}`;

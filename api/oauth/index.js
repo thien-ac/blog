@@ -26,10 +26,12 @@ export default async function handler(req, res) {
     const origin = (req.query.origin && String(req.query.origin)) || siteUrl;
     const state  = makeState(16);
 
-    // ⚠ Nếu đang test HTTP (localhost), hãy xóa `Secure;`
+    // Nếu SITE_URL là HTTPS thì thêm flag Secure; để an toàn.
+    // Ngược lại (ví dụ `http://localhost`) không thêm Secure để cookie được chấp nhận khi dev.
+    var secureFlag = siteUrl && siteUrl.toLowerCase().startsWith('https://') ? 'Secure; ' : '';
     res.setHeader('Set-Cookie', [
-      `oauth_state=${encodeURIComponent(state)}; Path=/; Max-Age=600; SameSite=Lax; Secure; HttpOnly`,
-      `oauth_origin=${encodeURIComponent(origin)}; Path=/; Max-Age=600; SameSite=Lax; Secure; HttpOnly`,
+      `oauth_state=${encodeURIComponent(state)}; Path=/; Max-Age=600; SameSite=Lax; ${secureFlag}HttpOnly`,
+      `oauth_origin=${encodeURIComponent(origin)}; Path=/; Max-Age=600; SameSite=Lax; ${secureFlag}HttpOnly`,
     ]);
 
     const redirect_uri = `${siteUrl}/api/oauth/callback?origin=${encodeURIComponent(origin)}`;

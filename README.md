@@ -49,6 +49,10 @@ A static blog template built with [Astro](https://astro.build).
 4. Run `pnpm new-post <filename>` to create a new post and edit it in `src/content/posts/`.
 5. Deploy your blog to Vercel, Netlify, GitHub Pages, etc. following [the guides](https://docs.astro.build/en/guides/deploy/). You need to edit the site configuration in `astro.config.mjs` before deployment.
 
+### Admin / GitHub OAuth
+
+- See [docs/admin-oauth.md](docs/admin-oauth.md) for instructions to set up GitHub OAuth (required env vars, callback URL, local-dev notes).
+
 ## 📝 Frontmatter of Posts
 
 ```yaml
