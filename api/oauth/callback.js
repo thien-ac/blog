@@ -1,11 +1,10 @@
 
-// /api/oauth/callback.js (Vercel Serverless Function)
 export const config = { runtime: 'nodejs' };
 
 export default async function handler(req, res) {
   const client_id     = process.env.OAUTH_CLIENT_ID;
   const client_secret = process.env.OAUTH_CLIENT_SECRET;
-  const siteUrl       = process.env.SITE_URL;                 // ví dụ: https://blog.thien.ac
+  const siteUrl       = process.env.SITE_URL; // ví dụ: https://blog.thien.ac
   const host          = process.env.OAUTH_HOSTNAME || 'github.com';
 
   if (!client_id || !client_secret || !siteUrl) {
@@ -23,34 +22,62 @@ export default async function handler(req, res) {
   const { code, state } = req.query;
   if (!code) return res.status(400).json({ error: 'MissingCode', message: 'OAuth "code" is required' });
 
-  // Lấy origin từ query/cookie
-  const cookieHeader     = req.headers.cookie || '';
-  const cookieOriginRaw  = (cookieHeader.match(/(?:^|;\s*)oauth_origin=([^;]+)/) || [])[1];
-  const originFromCookie = cookieOriginRaw ? decodeURIComponent(cookieOriginRaw) : '';
-  const originFromQuery  = (req.query.origin && String(req.query.origin)) || '';
-  const targetOrigin     = originFromQuery || originFromCookie || siteUrl;
+  // Parse cookies an toàn
+  const cookieHeader = req.headers.cookie || '';
+  const cookies = Object.fromEntries(
+    cookieHeader.split(';').map(v => {
+      const i = v.indexOf('=');
+      if (i === -1) return [v.trim(), ''];
+      const k = v.slice(0, i).trim();
+      const val = v.slice(i + 1).trim();
+      return [k, val];
+    })
+  );
 
-  // (tuỳ chọn) xác thực state đơn giản
-  const cookieStateRaw = (cookieHeader.match(/(?:^|;\s*)oauth_state=([^;]+)/) || [])[1];
-  const savedState     = cookieStateRaw ? decodeURIComponent(cookieStateRaw) : '';
+  let originFromCookie = '';
+  try { originFromCookie = cookies['oauth_origin'] ? decodeURIComponent(cookies['oauth_origin']) : ''; } catch {}
+  const originFromQuery = (req.query.origin && String(req.query.origin)) || '';
+  const targetOrigin    = originFromQuery || originFromCookie || siteUrl;
+
+  let savedState = '';
+  try { savedState = cookies['oauth_state'] ? decodeURIComponent(cookies['oauth_state']) : ''; } catch {}
   if (!savedState || savedState !== state) {
-    console.warn('State mismatch:', { savedState, state });
+    // Production nên chặn:
+    return res.status(400).json({ error: 'StateMismatch', savedState, state });
   }
 
-  // redirect_uri phải KHỚP GitHub OAuth App (callback: https://blog.thien.ac/api/oauth/callback)
   const redirect_uri = `${siteUrl}/api/oauth/callback?origin=${encodeURIComponent(targetOrigin)}`;
 
   // 1) Đổi code lấy access_token
   let tokenData;
   try {
+    const params = new URLSearchParams({ client_id, client_secret, code, redirect_uri });
     const tokenResp = await fetch(`https://${host}/login/oauth/access_token`, {
       method: 'POST',
-      headers: { Accept: 'application/json' },
-      body: new URLSearchParams({ client_id, client_secret, code, redirect_uri }),
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: params.toString(),
     });
-    tokenData = await tokenResp.json();
+
+    if (!tokenResp.ok) {
+      const raw = await tokenResp.text();
+      return res.status(tokenResp.status).json({
+        error: 'TokenExchangeFailed',
+        status: tokenResp.status,
+        body: raw,
+      });
+    }
+
+    try {
+      tokenData = await tokenResp.json();
+    } catch {
+      const raw = await tokenResp.text();
+      return res.status(502).json({ error: 'TokenParseFailed', body: raw });
+    }
   } catch (e) {
-    return res.status(502).json({ error: 'TokenExchangeFailed', message: e.message });
+    return res.status(502).json({ error: 'TokenExchangeError', message: e.message });
   }
 
   if (tokenData.error) {
@@ -60,17 +87,14 @@ export default async function handler(req, res) {
   const token = tokenData.access_token || tokenData.token;
   if (!token) return res.status(400).json({ error: 'NoAccessToken', details: tokenData });
 
-  // 2) Chuẩn hoá nhiều FORMAT message mà Decap/Netlify từng dùng
-  const jsonPayload  = JSON.stringify({ token, provider: 'github', backend: 'github', state });
-  const formats = [
-    // format “chuẩn” của Decap v3 (phổ biến)
-    `authorization:github:success:${jsonPayload}`,
-    // dự phòng Netlify CMS OAuth provider (nhiều repo dùng format này)
-    `netlify-cms-oauth-provider:${jsonPayload}`,
-    // một số bản fork/phiên bản cũ dùng token dạng chuỗi sau prefix
-    `authorization:github:success:${token}`,
-    // biến thể ít gặp, thử thêm để bao quát
-    `authorization:github:access_token:${token}`,
+  // 2) Các format message cho Decap/Netlify
+  const jsonPayload = JSON.stringify({ token, provider: 'github', backend: 'github', state });
+
+   const formats = [
+    `authorization:github:success:${jsonPayload}`, // Decap v3
+    `netlify-cms-oauth-provider:${jsonPayload}`,   // Netlify CMS provider cũ
+    `authorization:github:success:${token}`,       // token chuỗi
+    `authorization:github:access_token:${token}`,  // biến thể
   ];
 
   const html = `<!doctype html>
@@ -87,7 +111,6 @@ export default async function handler(req, res) {
 <body>
   <h1>Đăng nhập GitHub thành công</h1>
   <p>Đang gửi token về cửa sổ CMS (nhiều lần để đảm bảo nhận). Mở Console của trang <code>/admin</code> để quan sát.</p>
-
   <h3>origin</h3>
   <pre>${targetOrigin}</pre>
 
@@ -95,15 +118,14 @@ export default async function handler(req, res) {
     (function () {
       var origin = ${JSON.stringify(targetOrigin)};
       var msgs = ${JSON.stringify(formats)};
-      var sendCount = 0;
+      var attempts = 0;
 
-      function sendOnce(useStar) {
-        var tgt = useStar ? '*' : origin;
+      function sendOnce() {
         var ok = false;
         function _send(target) {
           try {
             if (target && typeof target.postMessage === 'function') {
-              for (var i=0; i<msgs.length; i++) { target.postMessage(msgs[i], tgt); }
+              for (var i=0; i<msgs.length; i++) { target.postMessage(msgs[i], origin); }
               ok = true;
             }
           } catch (e) { console.error('postMessage error:', e); }
@@ -113,19 +135,11 @@ export default async function handler(req, res) {
         return ok;
       }
 
-      // Gửi lại nhiều lần trong ~6 giây:
-      // - 6 lần đầu với origin chính xác
-      // - 6 lần sau (nếu cần) với targetOrigin='*' để TEST listener
-      var attempts = 0;
       var timer = setInterval(function(){
         attempts++;
-        var useStar = attempts > 6;
-        var ok = sendOnce(useStar);
-        sendCount++;
+        var ok = sendOnce();
         if (attempts >= 12) clearInterval(timer);
       }, 500);
-
-      // KHÔNG tự đóng popup – để bạn kiểm tra trực tiếp.
     })();
   </script>
 </body>
@@ -133,4 +147,3 @@ export default async function handler(req, res) {
 
   res.setHeader('Content-Type', 'text/html; charset=utf-8');
   return res.status(200).send(html);
-}

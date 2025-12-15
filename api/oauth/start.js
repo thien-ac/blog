@@ -1,5 +1,4 @@
 
-// /api/oauth/start.js
 export const config = { runtime: 'nodejs' };
 
 function randomState() {
@@ -9,22 +8,27 @@ function randomState() {
 export default async function handler(req, res) {
   const client_id = process.env.OAUTH_CLIENT_ID;
   const siteUrl   = process.env.SITE_URL;
-  const scope     = 'repo,user'; // tuỳ nhu cầu, thường 'repo' đủ cho GitHub backend
-  const state     = randomState();
-  const redirect_uri = `${siteUrl}/api/oauth/callback`;
+  const scope     = 'repo,user';
 
   if (!client_id || !siteUrl) {
     return res.status(500).json({ error: 'MissingEnv' });
   }
+
+  const origin = (req.query.origin && String(req.query.origin)) || siteUrl;
+  const state  = randomState();
+
+  res.setHeader('Set-Cookie', [
+    `oauth_state=${encodeURIComponent(state)}; Path=/; Max-Age=600; SameSite=Lax; Secure; HttpOnly`,
+    `oauth_origin=${encodeURIComponent(origin)}; Path=/; Max-Age=600; SameSite=Lax; Secure; HttpOnly`,
+  ]);
+
+  const redirect_uri = `${siteUrl}/api/oauth/callback?origin=${encodeURIComponent(origin)}`;
 
   const authorizeUrl = new URL('https://github.com/login/oauth/authorize');
   authorizeUrl.searchParams.set('client_id', client_id);
   authorizeUrl.searchParams.set('redirect_uri', redirect_uri);
   authorizeUrl.searchParams.set('scope', scope);
   authorizeUrl.searchParams.set('state', state);
-
-  // Nếu bạn muốn chống CSRF, lưu state vào cookie/session (không bắt buộc với demo)
-  // res.setHeader('Set-Cookie', ...)
 
   return res.redirect(authorizeUrl.toString());
 }
