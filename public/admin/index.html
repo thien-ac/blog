@@ -103,6 +103,41 @@
     <!-- Phần tử mount bắt buộc cho Decap CMS -->
     <div id="nc-root"></div>
 
+    <script>
+      // If Decap didn't receive the payload while it was initializing (e.g. popup
+      // sent message before CMS set authCallback), deliver any stored payload
+      // from localStorage to `window.CMS.authCallback` when CMS becomes ready.
+      (function () {
+        function tryDeliverStoredPayload() {
+          try {
+            var raw = localStorage.getItem('decap_oauth_payload');
+            if (!raw) return false;
+            var payload = JSON.parse(raw);
+            if (window.CMS && typeof window.CMS.authCallback === 'function') {
+              console.info('[OAuth] Delivering stored payload to CMS.authCallback', payload);
+              window.CMS.authCallback(payload);
+              localStorage.removeItem('decap_oauth_payload');
+              return true;
+            }
+            console.debug('[OAuth] Stored payload present but CMS not ready yet');
+            return false;
+          } catch (e) {
+            console.error('[OAuth] Error delivering stored payload:', e);
+            return false;
+          }
+        }
+
+        // Try immediately and poll a few times while CMS initializes
+        if (!tryDeliverStoredPayload()) {
+          var attempts = 0;
+          var t = setInterval(function () {
+            attempts++;
+            if (tryDeliverStoredPayload() || attempts >= 12) clearInterval(t);
+          }, 500);
+        }
+      })();
+    </script>
+
     <!-- (Tuỳ chọn) Nút mở popup OAuth để đăng nhập GitHub -->
     <div style="margin: 1rem;">
       <button id="gh-login" type="button" style="padding: .5rem .75rem; font-size: 14px;">
