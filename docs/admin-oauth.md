@@ -59,4 +59,28 @@ window.open(url, 'github_oauth', 'width=800,height=700');
 - Đảm bảo `SITE_URL` chính xác và callback URL khớp với cấu hình trên GitHub OAuth App.
 - Trên nền tảng deploy (Vercel/Netlify), thêm biến môi trường cho cả Production và Preview (và Development nếu muốn).
 
+7) Troubleshooting — nếu không thấy UI để tạo/đăng bài sau khi đăng nhập
+
+- Mở DevTools Console trên trang `/admin` trước khi click **Login with GitHub** và quan sát các log sau khi callback chạy:
+  - `[OAuth] message received from ...` — tin nhắn từ popup
+  - `[OAuth] Received token ...` hoặc `[OAuth] Sending payload to CMS.authCallback` — token/payload đã được nhận
+
+- Kiểm tra `localStorage` trong Console:
+  - `localStorage.getItem('decap_token')` — phải có token chuỗi
+  - `localStorage.getItem('decap_oauth_payload')` — payload JSON nếu CMS chưa sẵn sàng
+
+- Nếu không thấy log gì từ popup:
+  - Kiểm tra popup có thực sự gọi `postMessage` (xem Console của popup).
+  - Đảm bảo `window.open()` không dùng `noopener,noreferrer` (xem `public/admin/index.html`).
+
+- Nếu token có nhưng CMS vẫn không hiện collections:
+  - Kiểm tra file `/admin/config.yml` có `backend.repo` đúng và `auth.client_id` đã chứa giá trị thực (không phải `${OAUTH_CLIENT_ID}` literal) trên môi trường deploy.
+  - Kiểm tra token có đủ scope (`repo`) và user có quyền ghi vào repo (branch, collaborator, app installation).
+
+- Các lỗi phổ biến: origin mismatch (callback gửi tới origin A nhưng admin đang mở origin B), cookie `oauth_state` bị mất (CSRF state mismatch), hoặc `OAUTH_CLIENT_ID/SECRET` chưa đặt đúng trên host.
+
+Nếu bạn muốn, tôi có thể:
+- Thêm temporal debug UI (nút hiện `localStorage`/cookie) hoặc tạm thời log thêm thông tin trong `/api/oauth/callback` để xác định origin và body được gửi đi.
+- Giúp kiểm tra quyền token bằng gọi API GitHub (ví dụ `GET https://api.github.com/user` với `Authorization: token <token>`).
+
 Nếu bạn muốn, mình có thể giúp tạo `.env.example`, cập nhật README và kiểm tra quy trình đăng nhập trên môi trường local hoặc deploy preview của bạn.

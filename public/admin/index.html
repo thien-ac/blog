@@ -23,6 +23,9 @@
 
         function handleOAuthMessage(event) {
           try {
+            // Debugging: log incoming messages to help troubleshoot why
+            // dashboard doesn't receive the token.
+            console.debug('[OAuth] message received from', event.origin, 'data:', event.data);
             // Bảo vệ: chỉ xử lý message từ origin hợp lệ
             if (event.origin !== allowedOrigin) return;
 
@@ -45,9 +48,11 @@
 
                 // Nếu Decap đã sẵn sàng, báo kết quả đăng nhập cho CMS
                 if (window.CMS && typeof window.CMS.authCallback === 'function') {
+                  console.info('[OAuth] Sending payload to CMS.authCallback', payload);
                   window.CMS.authCallback(payload);
                 } else {
                   // Dự phòng: lưu payload để CMS đọc sau khi init
+                  console.info('[OAuth] Storing payload in localStorage for later', payload);
                   localStorage.setItem('decap_oauth_payload', JSON.stringify(payload));
                 }
 
@@ -64,13 +69,16 @@
               if (!token) return;
 
               // Lưu token cho ứng dụng/CMS dùng về sau
+              console.info('[OAuth] Received token, saving to localStorage (decap_token)');
               localStorage.setItem('decap_token', token);
 
               // Tạo payload JSON tối thiểu và gửi cho Decap nếu có sẵn
               var payload = { token: token, provider: 'github', backend: 'github' };
               if (window.CMS && typeof window.CMS.authCallback === 'function') {
+                console.info('[OAuth] Sending token payload to CMS.authCallback');
                                window.CMS.authCallback(payload);
               } else {
+                console.info('[OAuth] Storing token payload in localStorage for later');
                 localStorage.setItem('decap_oauth_payload', JSON.stringify(payload));
               }
 
