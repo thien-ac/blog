@@ -111,10 +111,14 @@
             var origin = window.location.origin;
             var url = '/api/oauth/index?origin=' + encodeURIComponent(origin);
 
+            // IMPORTANT: Do NOT set `noopener`/`noreferrer` here because the
+            // OAuth callback uses `window.opener.postMessage()` to send the
+            // token back to the admin window. Using `noopener` would make
+            // `window.opener` null and break the flow.
             var w = window.open(
               url,
               'github_oauth',
-              'width=800,height=700,noopener,noreferrer'
+              'width=800,height=700'
             );
 
             if (!w) {

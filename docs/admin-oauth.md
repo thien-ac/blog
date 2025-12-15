@@ -37,6 +37,18 @@ pnpm dev
 
 - Lưu ý về cookie Secure flag: API `/api/oauth` mặc định chỉ thêm `Secure` nếu `SITE_URL` bắt đầu bằng `https://`. Khi dùng `http://localhost` cookie vẫn được gửi (không có `Secure`) để tiện chạy local.
 
+6) Popup và postMessage
+- Khi mở popup để đăng nhập OAuth, popup phải giữ `window.opener` để có thể gọi `postMessage` về cửa sổ gốc. Vì vậy, gọi `window.open()` *không* được truyền các tính năng `noopener` hoặc `noreferrer` (một số site thêm mặc định; nếu bạn thấy popup không gửi token về, kiểm tra chỗ gọi `window.open`).
+
+Ví dụ (trong `public/admin/index.html`):
+
+```js
+// ✅ giữ window.opener
+window.open(url, 'github_oauth', 'width=800,height=700');
+
+// ❌ KHÔNG dùng: 'width=800,height=700,noopener,noreferrer'
+```
+
 4) Tra cứu & kiểm tra
 - Mở `/admin` và bấm **Đăng nhập GitHub**.
 - Popup sẽ mở `/api/oauth/index` → chuyển hướng tới GitHub → sau khi xác thực sẽ trả về `/api/oauth/callback` và gửi token về trang `/admin` bằng `postMessage`.
