@@ -108,6 +108,15 @@ Direct publish (tự động commit)
 - Với chế độ `simple`, việc publish trong admin sẽ tạo commit thẳng lên nhánh cấu hình (mặc định `main`). Hãy chắc chắn token OAuth có `repo` scope và user/app có quyền ghi vào repo.
 - Nếu bạn muốn quy trình review + merge, giữ `publish_mode: editorial_workflow` để CMS tạo Pull Request thay vì commit trực tiếp.
 
+Manual verification steps
+
+1. Open the admin at `https://your-site/admin?oauth_debug=1` and log in with GitHub.
+2. Use the OAuth Debug panel or watch the Console to ensure the payload is delivered:
+  - Look for `[OAuth] Delivering stored payload to CMS.authCallback` in Console or click `Deliver payload` in the panel.
+3. Create a test post (Title: `test-oauth-publish`, Draft: false) and click `Publish`.
+4. Check your repository on GitHub for a new commit adding `src/content/posts/test-oauth-publish.md` on the configured branch (`main`).
+5. If no commit appears, check the Console for errors and run the GitHub API checks above to validate the token's access.
+
 - Các lỗi phổ biến: origin mismatch (callback gửi tới origin A nhưng admin đang mở origin B), cookie `oauth_state` bị mất (CSRF state mismatch), hoặc `OAUTH_CLIENT_ID/SECRET` chưa đặt đúng trên host.
 
 Nếu bạn muốn, tôi có thể:
