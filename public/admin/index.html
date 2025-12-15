@@ -442,6 +442,9 @@
 
               if (json.committed) {
                 alert('Bài đã được tạo: ' + (json.path || json.html_url || ''));
+                if (json.deploy_triggered) {
+                  alert('Triển khai (deploy) đã được kích hoạt để cập nhật site. (Chờ vài phút cho build hoàn tất)');
+                }
                 try { document.getElementById('gh-login') && (document.getElementById('gh-login').style.display = 'none'); } catch (e) {}
                 try {
                   if (opts && opts.autoOpenEditor && json.slug) {

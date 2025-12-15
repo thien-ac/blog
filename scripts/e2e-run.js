@@ -195,13 +195,18 @@ async function run() {
         return { ok: false, status: 404, json: async () => ({}) };
       }
     }
+    ,
+    // optional Vercel/Deploy hook
+    { url: 'https://vercel.example/hook', response: () => ({ ok: true, status: 200, text: async () => 'triggered' }) }
   ]);
   process.env.AI_GITHUB_TOKEN = 'testtoken';
+  process.env.VERCEL_DEPLOY_HOOK = 'https://vercel.example/hook';
   res = makeRes();
   await genHandler(makeReq('POST', { title: 'giáo trình tiếng trung cho người việt', prompt: 'viết một giáo trình ngắn cho người mới bắt đầu', commit: true }), res);
   assert.strictEqual(res._status, 200);
   assert.strictEqual(res._body.ok, true);
   assert.strictEqual(res._body.committed, true);
+  assert.strictEqual(res._body.deploy_triggered, true);
   assert.strictEqual(res._body.slug, 'giao-trinh-tieng-trung-cho-nguoi-viet');
   console.log('✓ scenario: generate Vietnamese title (with commit)');
 

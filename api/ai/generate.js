@@ -439,7 +439,22 @@ export default async function handler(req, res) {
     const fname = createdPath ? createdPath.split('/').pop() : (filename.split('/').pop());
     const slugOut = fname ? fname.replace(/\.md$/, '') : slug;
 
-    return res.json({ ok: true, committed: true, path: createdPath, html_url: createResp.body.content.html_url, slug: slugOut, generated: generated, images: uploadedImages });
+    // Optionally trigger a Vercel (or other) deploy hook so the site is rebuilt
+    let deployTriggered = false;
+    try {
+      const hook = process.env.VERCEL_DEPLOY_HOOK || process.env.DEPLOY_HOOK;
+      if (hook) {
+        // fire-and-forget trigger; await to ensure it was attempted for observability
+        try {
+          const resp = await fetch(hook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: 'ai-generate', path: createdPath, slug: slugOut }) });
+          deployTriggered = resp && resp.ok;
+        } catch (e) {
+          console.warn('Deploy hook call failed', e && (e.message || e));
+        }
+      }
+    } catch (e) { /* ignore */ }
+
+    return res.json({ ok: true, committed: true, path: createdPath, html_url: createResp.body.content.html_url, slug: slugOut, generated: generated, images: uploadedImages, deploy_triggered: deployTriggered });
   } catch (err) {
     console.error('AI generate handler error', err);
     res.status(500).json({ error: 'server_error', message: err.message || String(err) });
