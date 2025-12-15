@@ -233,6 +233,7 @@ export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'MethodNotAllowed' });
     const { title, prompt, commit = true, auto = false, imagesCount = 2, includeVideos = false, secret } = req.body || {};
+    const forceFake = (req.body && req.body.forceFake && process.env.NODE_ENV !== 'production');
 
     // optional admin secret guard
     if (process.env.AI_ADMIN_SECRET) {
@@ -244,7 +245,12 @@ export default async function handler(req, res) {
     // If auto generation requested, or title missing, ask AI to compose the full post
     if (auto || !finalTitle) {
       try {
-        generated = await composePostWithOpenAI({ prompt });
+        if (forceFake) {
+          const mock = await import('./mock.js');
+          generated = await mock.composePost({ prompt });
+        } else {
+          generated = await composePostWithOpenAI({ prompt });
+        }
       } catch (e) {
         console.warn('composePostWithOpenAI failed', e && e.message ? e.message : e);
       }
@@ -253,7 +259,14 @@ export default async function handler(req, res) {
       if (!generated) {
         // try to generate a reasonable title if missing
         if (!finalTitle) {
-          try { finalTitle = (await generateTitleWithOpenAI(prompt || 'AI generated post')) || finalTitle; } catch (e) { /* ignore */ }
+          try {
+            if (forceFake) {
+              const mock = await import('./mock.js');
+              finalTitle = (await mock.generateTitle(prompt || 'AI generated post')) || finalTitle;
+            } else {
+              finalTitle = (await generateTitleWithOpenAI(prompt || 'AI generated post')) || finalTitle;
+            }
+          } catch (e) { /* ignore */ }
         }
 
         // If we still don't have a title, derive from prompt
@@ -286,7 +299,12 @@ export default async function handler(req, res) {
       videos = Array.isArray(generated.videos) ? generated.videos : [];
     } else {
       try {
-        body = await generateWithOpenAI(prompt || '', finalTitle);
+        if (forceFake) {
+          const mock = await import('./mock.js');
+          body = await mock.simpleGenerate(prompt || '', finalTitle);
+        } else {
+          body = await generateWithOpenAI(prompt || '', finalTitle);
+        }
       } catch (e) { console.warn('OpenAI generation failed:', e && e.message ? e.message : e); }
     }
 
@@ -302,8 +320,13 @@ export default async function handler(req, res) {
     // Helper: choose image generator (OpenAI -> GenMini)
     async function makeImage(promptText) {
       let b64 = null;
-      if (process.env.OPENAI_API_KEY) {
-        b64 = await generateImageWithOpenAI(promptText);
+      if (forceFake) {
+        const mock = await import('./mock.js');
+        b64 = await mock.generateImage(promptText);
+      } else {
+        if (process.env.OPENAI_API_KEY) {
+          b64 = await generateImageWithOpenAI(promptText);
+        }
       }
       if (!b64 && process.env.GENMINI_API_KEY) {
         b64 = await generateImageWithGenMini(promptText);
@@ -379,29 +402,31 @@ export default async function handler(req, res) {
       if (uploadedImages.length) body = `![](${uploadedImages[0].path})\n\n` + body;
     }
 
-    // Compose final markdown with frontmatter
-    const markdown = `---\ntitle: ${finalTitle}\npublished: ${getDate()}\ndescription: "${(description || '').replace(/"/g, '\\"')}"\nimage: "${uploadedImages[0] ? uploadedImages[0].path : ''}"\ntags: []\ncategory: ''\ndraft: ${commit ? 'false' : 'true'}\nlang: ''\n---\n\n${body}`;
+    // Compose final markdown with full frontmatter (but delay slug until filename finalized)
+    function composeMarkdown(slugToUse) {
+      const publishedDate = getDate();
+      const author = process.env.AI_POST_AUTHOR || 'hopthurac';
+      const imagePath = uploadedImages[0] ? uploadedImages[0].path : '';
+      const tagsYaml = Array.isArray(images) ? '[]' : '[]';
+      return `---\ntitle: ${finalTitle}\npublished: ${publishedDate}\nupdated: ${publishedDate}\ndescription: "${(description || '').replace(/"/g, '\\"')}"\nimage: "${imagePath}"\ntags: []\ncategory: ''\nauthor: "${author}"\nslug: "${slugToUse}"\ndraft: ${commit ? 'false' : 'true'}\nlang: "${process.env.DEFAULT_LANG || 'vi'}"\ncanonical: ''\n---\n\n${body}`;
+    }
 
     // If commit not requested or no token, return content only
     if (!commit || !ghToken) {
-      return res.json({ ok: true, committed: false, content: markdown, generated: generated });
+      const draftContent = composeMarkdown(slug);
+      return res.json({ ok: true, committed: false, content: draftContent, generated: generated });
     }
 
-    let filename = `src/content/posts/${slug}.md`;
-    // ensure unique filename
-    let i = 0;
-    while (true) {
-      const checkUrl = `https://api.github.com/repos/${owner}/${name}/contents/${encodeURIComponent(filename)}`;
-      const check = await fetchJson(checkUrl + `?ref=${encodeURIComponent(branch)}`, { headers: { Authorization: `token ${ghToken}`, 'User-Agent': 'ai-generate' } });
-      if (!check.ok) break; // not found
-      i++; filename = `src/content/posts/${slug}-${i}.md`;
-    }
+    // Use a timestamp suffix to avoid filename collisions and unnecessary GitHub checks
+    const filename = `src/content/posts/${slug}-${Date.now()}.md`;
 
-    const createUrl = `https://api.github.com/repos/${owner}/${name}/contents/${encodeURIComponent(filename)}`;
+    // Now that we've finalized a unique filename, compute slug from filename and include it in frontmatter
+    const createUrl = `https://api.github.com/repos/${owner}/${name}/contents/${encodeURI(filename)}`;
+    const markdownToWrite = composeMarkdown(filename.split('/').pop().replace(/\.md$/, ''));
     const createResp = await fetchJson(createUrl, {
       method: 'PUT',
       headers: { Authorization: `token ${ghToken}`, 'Content-Type': 'application/json', 'User-Agent': 'ai-generate' },
-      body: JSON.stringify({ message: `chore: create AI post ${finalTitle}`, content: Buffer.from(markdown).toString('base64'), branch })
+      body: JSON.stringify({ message: `chore: create AI post ${finalTitle}`, content: Buffer.from(markdownToWrite).toString('base64'), branch })
     });
 
     if (!createResp.ok) {

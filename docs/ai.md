@@ -66,7 +66,12 @@ Chạy local (phát triển)
 - Để phát triển mà không có API key thật, bạn có thể bật mock provider:
   - Thêm `DEV_USE_FAKE_OPENAI=1` vào file `.env.local` hoặc chạy `scripts/enable-dev-openai.sh` (sẽ tạo `.env.local` với `DEV_USE_FAKE_OPENAI=1` và `OPENAI_API_KEY=dev-key`).
   - Lưu ý: `dev-key` chỉ dành cho phát triển cục bộ — không dùng trong production.
+  - Ngoài ra, admin UI có nút "Mock AI" (chỉ dành cho môi trường dev) để ép server trả kết quả giả (mock) cho mục đích thử nghiệm. Nút này chỉ gởi một cờ đến server và chỉ được chấp nhận khi server chạy ở chế độ không phải production.
 
 Xử lý lỗi
 
 - Nếu server chưa cấu hình `OPENAI_API_KEY`, endpoint `/api/ai/generate` hoặc `/api/ai/chat` sẽ trả lỗi `missing_api_key`. Kiểm tra hướng dẫn ở trên để cấu hình biến môi trường hoặc bật chế độ phát triển.
+
+AI-generated posts
+
+- Bây giờ khi máy chủ commit bài viết được tạo bởi AI, server sẽ đảm bảo file được lưu trong `src/content/posts/<slug>.md` với frontmatter đầy đủ cho Decap CMS (`title`, `description`, `published`, `updated`, `image`, `tags`, `category`, `author`, `slug`, `draft`, `lang`, `canonical`) để bài vừa tạo có thể hiển thị đúng trong Admin → New Post.

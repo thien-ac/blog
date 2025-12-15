@@ -51,7 +51,12 @@ export default async function handler(req, res) {
 
     let reply;
     try {
-      reply = await callOpenAI(msgs, process.env.OPENAI_MODEL);
+      if (req.body && req.body.forceFake && process.env.NODE_ENV !== 'production') {
+        const mock = await import('./mock.js');
+        reply = await mock.chatReply(msgs, process.env.OPENAI_MODEL);
+      } else {
+        reply = await callOpenAI(msgs, process.env.OPENAI_MODEL);
+      }
     } catch (e) {
       console.error('OpenAI call failed in /api/ai/chat', e && (e.message || e));
       // If missing API key, return a 400 so the client can show actionable guidance.

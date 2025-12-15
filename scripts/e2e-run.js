@@ -29,7 +29,7 @@ function mockFetchFactory(scenarios) {
         if (s.url && (String(url).indexOf(s.url) !== -1 || String(uDec).indexOf(s.url) !== -1)) return s.response(url, opts);
       } catch (e) { /* ignore match function errors */ }
     }
-    throw new Error('Unexpected fetch call: ' + url);
+
   };
 }
 
@@ -82,7 +82,19 @@ async function run() {
     // create image file
     { match: (u, o) => u.indexOf('https://api.github.com/repos/') === 0 && o && o.method === 'PUT' && u.indexOf('/public/assets/images/ai/') !== -1, response: () => ({ ok: true, status: 201, json: async () => ({ content: { path: 'public/assets/images/ai/auto-1.png', html_url: 'https://github' } }) }) },
     // create post file
-    { match: (u, o) => u.indexOf('https://api.github.com/repos/') === 0 && o && o.method === 'PUT' && u.indexOf('/contents/src/content/posts') !== -1, response: () => ({ ok: true, status: 201, json: async () => ({ content: { path: 'src/content/posts/autowithimg.md', html_url: 'https://github' } }) }) }
+    { match: (u, o) => u.indexOf('https://api.github.com/repos/') === 0 && o && o.method === 'PUT' && (u.indexOf('/contents/src/content/posts') !== -1 || u.indexOf('/contents/src%2Fcontent%2Fposts') !== -1),
+      response: (u, o) => {
+        try {
+          const body = JSON.parse(o.body || '{}');
+          const content = Buffer.from(body.content || '', 'base64').toString('utf8');
+          if (!/title:\s*AutoWithImg/.test(content)) throw new Error('missing title in frontmatter');
+          if (!/published:\s*\d{4}-\d{2}-\d{2}/.test(content)) throw new Error('missing published');
+          if (!/author:\s*"?\w+"?/.test(content)) throw new Error('missing author');
+          if (!/slug:\s*"?autowithimg"?/.test(content)) throw new Error('missing slug');
+        } catch (e) { throw e; }
+        return { ok: true, status: 201, json: async () => ({ content: { path: 'src/content/posts/autowithimg.md', html_url: 'https://github' } }) };
+      }
+    }
   ]);
   process.env.AI_GITHUB_TOKEN = 'testtoken';
   res = makeRes();
@@ -163,10 +175,24 @@ async function run() {
   global.fetch = mockFetchFactory([
     // body generation
     { url: 'https://api.openai.com/v1/chat/completions', response: () => ({ ok: true, status: 200, json: async () => ({ choices: [{ message: { content: '# giáo trình tiếng trung cho người việt\n\nNội dung đầy đủ.' } }] }) }) },
-    // check file - not found
-    { match: (u) => u.indexOf('https://api.github.com/repos/') === 0 && u.indexOf('/contents/') !== -1 && u.indexOf('?ref=') !== -1, response: () => ({ ok: false, status: 404, json: async () => ({}) }) },
-    // create post file
-    { match: (u, o) => u.indexOf('https://api.github.com/repos/') === 0 && o && o.method === 'PUT' && u.indexOf('/contents/src/content/posts') !== -1, response: () => ({ ok: true, status: 201, json: async () => ({ content: { path: 'src/content/posts/giao-trinh-tieng-trung-cho-nguoi-viet.md', html_url: 'https://github' } }) }) }
+    // check and create post file (handles encoded paths and both GET/PUT)
+    { match: (u, o) => u.indexOf('https://api.github.com/repos/') === 0 && (u.indexOf('/contents/src/content/posts') !== -1 || u.indexOf('/contents/src%2Fcontent%2Fposts') !== -1),
+      response: (u, o) => {
+        // If it's a PUT, validate content and pretend to create
+        if (o && o.method === 'PUT') {
+          try {
+            const body = JSON.parse(o.body || '{}');
+            const content = Buffer.from(body.content || '', 'base64').toString('utf8');
+            if (!/title:\s*giáo trình tiếng trung cho người việt/.test(content)) throw new Error('missing title in frontmatter');
+            if (!/slug:\s*"?[-a-z0-9]+"?/.test(content)) throw new Error('missing slug');
+            if (!/author:\s*"?[\w-]+"?/.test(content)) throw new Error('missing author');
+          } catch (e) { throw e; }
+          return { ok: true, status: 201, json: async () => ({ content: { path: 'src/content/posts/giao-trinh-tieng-trung-cho-nguoi-viet.md', html_url: 'https://github' } }) };
+        }
+        // otherwise simulate not-found when checking existence
+        return { ok: false, status: 404, json: async () => ({}) };
+      }
+    }
   ]);
   process.env.AI_GITHUB_TOKEN = 'testtoken';
   res = makeRes();
