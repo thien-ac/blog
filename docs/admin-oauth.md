@@ -132,6 +132,11 @@ Notes
 - The script reads repo and branch info from `public/admin/config.yml` automatically, so it tests the same repository/branch configured for Decap.
 - Keep a personal token secret with `repo` scope if you prefer not to rely on `GITHUB_TOKEN`.
 
+CI automation
+
+- A CI workflow (`.github/workflows/verify-publish-ci.yml`) runs the verification automatically on every push to `main` and on a daily schedule. It uses the repository `GITHUB_TOKEN` by default; you can provide a stronger token via the secret `VERIFY_PUBLISH_TOKEN` if desired.
+- To disable the automatic CI check, remove or disable the `Verify Publish (CI)` workflow in the Actions tab.
+
 - Các lỗi phổ biến: origin mismatch (callback gửi tới origin A nhưng admin đang mở origin B), cookie `oauth_state` bị mất (CSRF state mismatch), hoặc `OAUTH_CLIENT_ID/SECRET` chưa đặt đúng trên host.
 
 Nếu bạn muốn, tôi có thể:
