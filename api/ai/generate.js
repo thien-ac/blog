@@ -63,40 +63,151 @@ async function generateWithOpenAI(prompt, title) {
   return null;
 }
 
+async function composePostWithOpenAI(opts = {}) {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+
+  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+  const system = `You are a helpful assistant that produces a complete blog post as JSON. Output MUST be valid JSON only. The JSON schema is:{"title":"...","description":"short description","body":"markdown content string","images":[{"prompt":"...","filename_hint":"..."}],"videos":[{"url":"...","caption":"..."}] }`;
+  const user = `Create a creative, well-structured blog post about: ${opts.prompt || 'a useful technical topic'}. Provide 1-3 image ideas and optionally include any video URLs to embed. Use Vietnamese language if the site is Vietnamese. Keep images described as short prompts. Don't include extra commentary — return strict JSON.`;
+
+  const res = await fetch('https://api.openai.com/v1/chat/completions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model, messages: [{ role: 'system', content: system }, { role: 'user', content: user }], max_tokens: 1500 })
+  });
+  const json = await res.json();
+  if (json && json.choices && json.choices[0] && json.choices[0].message) {
+    const txt = json.choices[0].message.content;
+    try { return JSON.parse(txt); } catch (e) {
+      // try to extract JSON substring
+      const start = txt.indexOf('{');
+      const end = txt.lastIndexOf('}');
+      if (start >= 0 && end >= 0) {
+        try { return JSON.parse(txt.slice(start, end+1)); } catch (e2) { /* fallthrough */ }
+      }
+    }
+  }
+  return null;
+}
+
+async function generateImageWithOpenAI(prompt, size = '1024x1024') {
+  const key = process.env.OPENAI_API_KEY;
+  if (!key) return null;
+  // Use image generation endpoint; request base64 result
+  const res = await fetch('https://api.openai.com/v1/images/generations', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+    body: JSON.stringify({ prompt, n: 1, size, response_format: 'b64_json' })
+  });
+  const json = await res.json();
+  if (json && json.data && json.data[0] && json.data[0].b64_json) return json.data[0].b64_json;
+  return null;
+}
+
 export default async function handler(req, res) {
   try {
     if (req.method !== 'POST') return res.status(405).json({ error: 'MethodNotAllowed' });
+    const { title, prompt, commit = true, auto = false, imagesCount = 2, includeVideos = false } = req.body || {};
 
-    const { title, prompt, commit = true } = req.body || {};
-    if (!title) return res.status(400).json({ error: 'missing_title' });
-
-    // Generate content
-    let body = null;
-    try {
-      body = await generateWithOpenAI(prompt || '', title);
-    } catch (e) {
-      console.warn('OpenAI generation failed:', e.message || e);
+    let generated = null;
+    let finalTitle = title;
+    // If auto generation requested, or title missing, ask AI to compose the full post
+    if (auto || !finalTitle) {
+      try {
+        generated = await composePostWithOpenAI({ prompt });
+      } catch (e) {
+        console.warn('composePostWithOpenAI failed', e && e.message ? e.message : e);
+      }
+      if (generated) {
+        finalTitle = generated.title || finalTitle;
+      }
     }
 
-    // fallback content
+    if (!finalTitle) return res.status(400).json({ error: 'missing_title' });
+
+    // Determine body and metadata
+    let body = null;
+    let description = '';
+    let images = [];
+    let videos = [];
+
+    if (generated) {
+      description = generated.description || '';
+      body = generated.body || '';
+      images = Array.isArray(generated.images) ? generated.images.slice(0, imagesCount) : [];
+      videos = Array.isArray(generated.videos) ? generated.videos : [];
+    } else {
+      try {
+        body = await generateWithOpenAI(prompt || '', finalTitle);
+      } catch (e) { console.warn('OpenAI generation failed:', e && e.message ? e.message : e); }
+    }
+
     if (!body) {
-      body = `# ${title}\n\nThis is an AI-generated stub. Replace with your content.`;
+      body = `# ${finalTitle}\n\nThis is an AI-generated stub. Replace with your content.`;
+    }
+
+    // If images were suggested, attempt to generate them (OpenAI images if available)
+    const ghToken = process.env.AI_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
+    const { owner, name, branch } = readRepoInfo();
+    const slug = slugify(finalTitle) || `ai-post-${Date.now()}`;
+
+    const uploadedImages = [];
+    if (images && images.length && ghToken) {
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        const promptText = img.prompt || img;
+        try {
+          let b64 = null;
+          // Prefer OpenAI image generation if available
+          b64 = await generateImageWithOpenAI(promptText);
+          if (!b64) {
+            console.warn('No image generated for prompt:', promptText);
+            continue;
+          }
+
+          const fname = `${slug}-${i + 1}.png`;
+          const pathInRepo = `public/assets/images/ai/${fname}`;
+          const createUrl = `https://api.github.com/repos/${owner}/${name}/contents/${encodeURIComponent(pathInRepo)}`;
+          const createResp = await fetchJson(createUrl, {
+            method: 'PUT',
+            headers: { Authorization: `token ${ghToken}`, 'Content-Type': 'application/json', 'User-Agent': 'ai-generate' },
+            body: JSON.stringify({ message: `chore: add AI image ${fname}`, content: b64, branch })
+          });
+          if (!createResp.ok) {
+            console.warn('Failed to upload image', createResp.status, createResp.body);
+            continue;
+          }
+          uploadedImages.push({ prompt: promptText, path: '/' + pathInRepo });
+        } catch (e) {
+          console.warn('image generation/upload failed', e && e.message ? e.message : e);
+        }
+      }
+    }
+
+    // Replace image placeholders in body if any
+    if (uploadedImages.length) {
+      let idx = 0;
+      body = body.replace(/\!\[.*?\]\(.*?\)/g, function () {
+        const p = uploadedImages[idx++] || null;
+        return p ? `![](${p.path})` : '';
+      });
+      // If body has no image placeholders, append first image
+      if (!/!\[.*?\]\(.*?\)/.test(body)) {
+        body = `![](${uploadedImages[0].path})\n\n` + body;
+      }
     }
 
     // Compose final markdown with frontmatter
-    const markdown = `---\ntitle: ${title}\npublished: ${getDate()}\ndescription: ''\nimage: ''\ntags: []\ncategory: ''\ndraft: true\nlang: ''\n---\n\n${body}`;
+    const markdown = `---\ntitle: ${finalTitle}\npublished: ${getDate()}\ndescription: "${(description || '').replace(/"/g, '\\"')}"\nimage: "${uploadedImages[0] ? uploadedImages[0].path : ''}"\ntags: []\ncategory: ''\ndraft: ${commit ? 'false' : 'true'}\nlang: ''\n---\n\n${body}`;
 
     // If commit not requested or no token, return content only
-    const ghToken = process.env.AI_GITHUB_TOKEN || process.env.GITHUB_TOKEN;
     if (!commit || !ghToken) {
-      return res.json({ ok: true, committed: false, content: markdown });
+      return res.json({ ok: true, committed: false, content: markdown, generated: generated });
     }
 
-    const { owner, name, branch } = readRepoInfo();
-    const slug = slugify(title) || `ai-post-${Date.now()}`;
     let filename = `src/content/posts/${slug}.md`;
-
-    // ensure unique filename: try suffixes if exists
+    // ensure unique filename
     let i = 0;
     while (true) {
       const checkUrl = `https://api.github.com/repos/${owner}/${name}/contents/${encodeURIComponent(filename)}`;
@@ -109,7 +220,7 @@ export default async function handler(req, res) {
     const createResp = await fetchJson(createUrl, {
       method: 'PUT',
       headers: { Authorization: `token ${ghToken}`, 'Content-Type': 'application/json', 'User-Agent': 'ai-generate' },
-      body: JSON.stringify({ message: `chore: create AI post ${title}`, content: Buffer.from(markdown).toString('base64'), branch })
+      body: JSON.stringify({ message: `chore: create AI post ${finalTitle}`, content: Buffer.from(markdown).toString('base64'), branch })
     });
 
     if (!createResp.ok) {
@@ -117,7 +228,7 @@ export default async function handler(req, res) {
       return res.status(500).json({ ok: false, error: 'create_failed', details: createResp.body });
     }
 
-    return res.json({ ok: true, committed: true, path: createResp.body.content.path, html_url: createResp.body.content.html_url });
+    return res.json({ ok: true, committed: true, path: createResp.body.content.path, html_url: createResp.body.content.html_url, generated: generated, images: uploadedImages });
   } catch (err) {
     console.error('AI generate handler error', err);
     res.status(500).json({ error: 'server_error', message: err.message || String(err) });

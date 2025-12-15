@@ -4,16 +4,23 @@ Tính năng này cho phép tạo bản thảo bài viết bằng AI (OpenAI) và
 
 Env vars cần thiết (tuỳ chọn):
 
-- `OPENAI_API_KEY` — (tuỳ chọn) OpenAI API key để tạo nội dung. Nếu không đặt, endpoint vẫn trả về nội dung mẫu.
+- `OPENAI_API_KEY` — (tuỳ chọn) OpenAI API key để tạo nội dung.
+- `OPENAI_MODEL` — (tuỳ chọn) model mặc định cho OpenAI (ví dụ `gpt-4o-mini`).
+- `GENMINI_API_KEY` — (tuỳ chọn) khóa cho GenMini để tạo hình ảnh (nếu bạn có).
+- `BINGAI_API_KEY` — (tuỳ chọn) khóa cho Bing AI (nếu bạn có).
 - `AI_GITHUB_TOKEN` hoặc `GITHUB_TOKEN` — (tuỳ chọn) GitHub token có quyền `repo` để commit file mới trực tiếp vào repo. Nếu không có, API sẽ trả về nội dung để bạn sao chép dán thủ công.
 
 Endpoint serverless:
 
 - `POST /api/ai/generate`
-  - body: `{ title: string, prompt?: string, commit?: boolean }`
+  - body: `{ title?: string, prompt?: string, commit?: boolean, auto?: boolean, imagesCount?: number }`
+  - Notes:
+    - If `auto=true` or no `title` provided, the server will ask the AI to craft a full post (title, description, body, image prompts).
+    - `imagesCount` controls how many images to generate (default 2).
   - response:
     - `{ ok: true, committed: true, path, html_url }` nếu đã commit thành công
     - `{ ok: true, committed: false, content }` nếu không commit (token không có hoặc commit=false)
+    - `{ ok: true, generated, images }` additional metadata when using `auto=true`
 
 Hành vi client (Admin UI):
 

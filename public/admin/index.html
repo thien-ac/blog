@@ -334,6 +334,9 @@
       <button id="ai-create" type="button" title="Yêu cầu OPENAI_API_KEY trên server; nếu có AI_GITHUB_TOKEN thì sẽ commit vào repo" style="padding: .5rem .75rem; font-size: 14px;">
         Tạo bài bằng AI
       </button>
+      <button id="ai-create-auto" type="button" title="AI tự tạo tiêu đề, mô tả, nội dung, hình ảnh và publish tự động" style="padding: .5rem .75rem; font-size: 14px;">
+        Tạo AI (Auto)
+      </button>
     </div>
 
     <script>
@@ -448,6 +451,17 @@
           };
 
           aiBtn.addEventListener('click', function () { window._decap_ai_create(); });
+
+          var autoBtn = document.getElementById('ai-create-auto');
+          if (autoBtn) {
+            autoBtn.addEventListener('click', async function () {
+              if (!confirm('Tạo bài tự động bằng AI và publish (commit) ngay?')) return;
+              var count = prompt('Số lượng hình ảnh (mặc định 2):', '2');
+              var n = parseInt(count, 10);
+              if (isNaN(n) || n < 0) n = 2;
+              await window._decap_ai_create({ auto: true, commit: true, imagesCount: n });
+            });
+          }
 
           // Floating quick-access AI button (visible when logged in)
           function createFloatingAi() {
