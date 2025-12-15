@@ -351,7 +351,7 @@ export default async function handler(req, res) {
             }
           const fname = `${slug}-${i + 1}.png`;
           const pathInRepo = `public/assets/images/ai/${fname}`;
-          const createUrl = `https://api.github.com/repos/${owner}/${name}/contents/${encodeURIComponent(pathInRepo)}`;
+          const createUrl = `https://api.github.com/repos/${owner}/${name}/src/contents/posts/${encodeURIComponent(pathInRepo)}`;
           const createResp = await fetchJson(createUrl, {
             method: 'PUT',
             headers: { Authorization: `token ${ghToken}`, 'Content-Type': 'application/json', 'User-Agent': 'ai-generate' },
@@ -391,7 +391,7 @@ export default async function handler(req, res) {
           if (!b64) continue;
           const fname = `${slug}-auto-${j + 1}.png`;
           const pathInRepo = `public/assets/images/ai/${fname}`;
-          const createUrl = `https://api.github.com/repos/${owner}/${name}/contents/${encodeURIComponent(pathInRepo)}`;
+          const createUrl = `https://api.github.com/repos/${owner}/${name}/src/contents/posts/${encodeURIComponent(pathInRepo)}`;
           const createResp = await fetchJson(createUrl, {
             method: 'PUT',
             headers: { Authorization: `token ${ghToken}`, 'Content-Type': 'application/json', 'User-Agent': 'ai-generate' },
@@ -424,7 +424,7 @@ export default async function handler(req, res) {
 
     // Now that we've finalized a unique filename, compute slug from filename and include it in frontmatter
     const createOnMain = async () => {
-      const createUrl = `https://api.github.com/repos/${owner}/${name}/contents/${encodeURI(filename)}`;
+      const createUrl = `https://api.github.com/repos/${owner}/${name}/src/contents/posts/${encodeURI(filename)}`;
       const markdownToWrite = composeMarkdown(filename.split('/').pop().replace(/\.md$/, ''));
       return await fetchJson(createUrl, {
         method: 'PUT',
@@ -451,7 +451,7 @@ export default async function handler(req, res) {
         });
         if (!createRefResp.ok) throw new Error('failed to create branch');
         // 3) create file on new branch
-        const createUrl = `https://api.github.com/repos/${owner}/${name}/contents/${encodeURI(filename)}`;
+        const createUrl = `https://api.github.com/repos/${owner}/${name}/src/contents/posts/${encodeURI(filename)}`;
         const markdownToWrite = composeMarkdown(filename.split('/').pop().replace(/\.md$/, ''));
         createResp = await fetchJson(createUrl, {
           method: 'PUT',
