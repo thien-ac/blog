@@ -7,52 +7,100 @@
     <meta name="robots" content="noindex" />
     <title>Content Manager</title>
 
-    <!-- Khai báo đường dẫn config.yml cho Decap -->
-    <link rel="cms-config-url" type="text/yaml" href="/admin/config.yml" />
+    <!-- Khai báo cấu hình CMS -->
+    <link href="/admin/config.yml" type="text/yaml" rel="cms-config-url" />
 
     <!-- Listener nhận token từ popup OAuth và điều hướng vào dashboard -->
     <script>
       (function () {
         var allowedOrigin = window.location.origin;
 
-        window.addEventListener('message', function (event) {
-          if (event.origin !== allowedOrigin) return;
-          var data = String(event.data || '');
-          var P1 = 'authorization:github:success:';
-          var P2 = 'netlify-cms-oauth-provider:';
-          var P3 = 'authorization:github:access_token:';
+        function handleOAuthMessage(event) {
+          try {
+            // Chỉ nhận từ đúng origin
+            if (event.origin !== allowedOrigin) {
+              console.warn('[OAuth] Bỏ qua message từ origin lạ:', event.origin);
+              return;
+            }
 
-          if (data.startsWith(P1) || data.startsWith(P2)) {
-            var s = data.indexOf('{');
-            if (s >= 0) {
+            var data = String(event.data || '');
+            var P_JSON_1 = 'authorization:github:success:';      // Decap v3 chuẩn
+            var P_JSON_2 = 'netlify-cms-oauth-provider:';         // provider cũ
+            var P_TOKEN_1 = 'authorization:github:access_token:'; // biến thể token
+            var P_TOKEN_2 = 'authorization:github:success:';      // có thể gửi token chuỗi sau prefix
+
+            if (data.startsWith(P_JSON_1) || data.startsWith(P_JSON_2)) {
+              var s = data.indexOf('{');
+              if (s < 0) {
+                console.warn('[OAuth] Không tìm thấy JSON payload:', data);
+                return;
+              }
               var payload = JSON.parse(data.slice(s));
+              console.log('[OAuth] Nhận payload JSON:', payload);
+
+              // Thông báo cho Decap (nếu CMS đã sẵn sàng)
               if (window.CMS && typeof window.CMS.authCallback === 'function') {
                 window.CMS.authCallback(payload);
               } else {
+                // Dự phòng: lưu để CMS đọc sau khi init
                 localStorage.setItem('decap_oauth_payload', JSON.stringify(payload));
               }
-              window.location.replace('/admin/#/'); // đổi path nếu dashboard của bạn khác
+
+              // Điều hướng vào dashboard (đổi path nếu cần)
+              window.location.replace('/admin/#/');
+
+            } else if (data.startsWith(P_TOKEN_1) || (data.startsWith(P_TOKEN_2) && data.indexOf('{') === -1)) {
+              var token = data.substring(data.lastIndexOf(':') + 1).trim();
+              if (!token) {
+                console.warn('[OAuth] Token chuỗi rỗng:', data);
+                return;
+              }
+              console.log('[OAuth] Nhận token chuỗi:', token);
+
+              localStorage.setItem('decap_token', token);
+
+              if (window.CMS && typeof window.CMS.authCallback === 'function') {
+                window.CMS.authCallback({ token, provider: 'github', backend: 'github' });
+              }
+
+              window.location.replace('/admin/#/');
+            } else {
+              console.log('[OAuth] Message không khớp format:', data);
             }
-          } else if (data.startsWith(P3) || (data.startsWith(P1) && data.indexOf('{') === -1)) {
-            var token = data.substring(data.lastIndexOf(':') + 1).trim();
-            localStorage.setItem('decap_token', token);
-            if (window.CMS && typeof window.CMS.authCallback === 'function') {
-              window.CMS.authCallback({ token, provider: 'github', backend: 'github' });
-            }
-            window.location.replace('/admin/#/');
+          } catch (e) {
+            console.error('[OAuth] Lỗi xử lý message:', e);
           }
-        }, false);
+        }
+
+        // Gắn listener SỚM
+        window.addEventListener('message', handleOAuthMessage, false);
       })();
     </script>
- </head>
-  <body>
-    <!-- Nạp Decap CMS v3 từ CDN -->
+
+    <!-- NẠP Decap CMS v3 từ CDN -->
     <script src="https://unpkg.com/decap-cms@3/dist/decap-cms.js"></script>
-    <!-- Nếu muốn tự chủ động khởi tạo, có thể bật MANUAL_INIT -->
-    <!-- <script>window.CMS_MANUAL_INIT = true;</script> -->
- 
- 
-    <!-- Bạn có thể thêm nút "Đăng nhập GitHub" nếu muốn mở popup -->
-    <!-- <button onclick="window.open('/api/oauth/index?origin='+encodeURIComponent(window.location.origin),'github_oauth','width=800,height=700')">Đăng nhập    <!-- <button onclick="window.open('/api/oauth/index?origin='+encodeURIComponent(window.location.origin),'github_oauth','width=800,height=700')">Đăng nhập GitHub</button> -->
+  </head>
+  <body>
+    <!-- Nút mở popup OAuth (tuỳ chọn) -->
+    <button id="gh-login">Đăng nhập GitHub</button>
+
+    <script>
+      (function () {
+        var btn = document.getElementById('gh-login');
+        if (btn) {
+          btn.addEventListener('click', function () {
+            var origin = window.location.origin;
+            var url = '/api/oauth/index?origin=' + encodeURIComponent(origin);
+
+            var w = window.open(
+              url,
+              'github_oauth',
+              'width=800,height=700,noopener,noreferrer'
+            );
+
+            if (!w) alert('Không thể mở popup. Hãy tắt chặn popup và thử lại.');
+          });
+        }
+      })();
+    </script>
   </body>
-</html>

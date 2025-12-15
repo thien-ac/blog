@@ -159,6 +159,16 @@ export default async function handler(req, res) {
       // Không tự đóng popup để bạn kiểm tra trực tiếp.
     })();
   </script>
+  
+// sau sendOnce() vòng lặp
+var timer = setInterval(function(){
+  attempts++;
+  var ok = sendOnce(); // hoặc useStar để test
+  if (attempts >= 12 || ok) {
+       clearInterval(timer);
+    try { window.close(); } catch(e) {}
+  }
+
 </body>
 </html>`;
 
