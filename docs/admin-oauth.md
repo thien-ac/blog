@@ -117,6 +117,21 @@ Manual verification steps
 4. Check your repository on GitHub for a new commit adding `src/content/posts/test-oauth-publish.md` on the configured branch (`main`).
 5. If no commit appears, check the Console for errors and run the GitHub API checks above to validate the token's access.
 
+Automated verification script
+
+- There's a script at `scripts/verify-publish.js` that will create (and then remove) a test post in the repository using a provided token. It verifies that the token can commit to the configured branch.
+- Run locally with:
+
+```bash
+OAUTH_TEST_TOKEN=ghp_... pnpm verify:publish
+```
+
+- Or run the GitHub Action manually from the repo's Actions tab: `Verify Publish` → `Run workflow` and provide a token (or use the default `GITHUB_TOKEN` which usually has write permission in the workflow context).
+
+Notes
+- The script reads repo and branch info from `public/admin/config.yml` automatically, so it tests the same repository/branch configured for Decap.
+- Keep a personal token secret with `repo` scope if you prefer not to rely on `GITHUB_TOKEN`.
+
 - Các lỗi phổ biến: origin mismatch (callback gửi tới origin A nhưng admin đang mở origin B), cookie `oauth_state` bị mất (CSRF state mismatch), hoặc `OAUTH_CLIENT_ID/SECRET` chưa đặt đúng trên host.
 
 Nếu bạn muốn, tôi có thể:
