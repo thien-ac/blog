@@ -59,11 +59,12 @@
                   // so that the CMS can restore the session on next load.
                   try {
                     var userObj = Object.assign({}, payload, { backendName: 'github' });
-                    localStorage.setItem('decap-cms-user', JSON.stringify(userObj));
-                    console.info('[OAuth] Also storing decap-cms-user for CMS restore', userObj);
-                  } catch (e) { console.warn('[OAuth] Failed writing decap-cms-user', e); }
-
-                  // Try delivering immediately in case CMS becomes ready now
+                    var existing = localStorage.getItem('decap-cms-user');
+                    if (existing !== JSON.stringify(userObj)) {
+                      localStorage.setItem('decap-cms-user', JSON.stringify(userObj));
+                      console.info('[OAuth] Also storing decap-cms-user for CMS restore', userObj);
+                    // hide login button when we store the user
+                    try { document.getElementById('gh-login') && (document.getElementById('gh-login').style.display = 'none'); } catch (e) {}
                   if (window._decap_tryDeliverOAuthPayload) window._decap_tryDeliverOAuthPayload();
                 }
 
@@ -86,11 +87,11 @@
               // ALSO: store the minimal user object expected by Decap
               try {
                 var userObj = { token: token, backendName: 'github' };
-                localStorage.setItem('decap-cms-user', JSON.stringify(userObj));
-                console.info('[OAuth] Also storing decap-cms-user for CMS restore', userObj);
-              } catch (e) { console.warn('[OAuth] Failed writing decap-cms-user', e); }
-
-              // Tạo payload JSON tối thiểu và gửi cho Decap nếu có sẵn
+                var existing = localStorage.getItem('decap-cms-user');
+                if (existing !== JSON.stringify(userObj)) {
+                  localStorage.setItem('decap-cms-user', JSON.stringify(userObj));
+                  console.info('[OAuth] Also storing decap-cms-user for CMS restore', userObj);
+                  try { document.getElementById('gh-login') && (document.getElementById('gh-login').style.display = 'none'); } catch (e) {}
               var payload = { token: token, provider: 'github', backend: 'github' };
               if (window.CMS && typeof window.CMS.authCallback === 'function') {
                 console.info('[OAuth] Sending token payload to CMS.authCallback');
@@ -187,7 +188,7 @@
       (function () {
         var seen = false;
         var d = setInterval(function () {
-          if (window.CMS) {
+            if (window.CMS) {
             if (!seen) console.info('[OAuth] window.CMS detected:', Object.keys(window.CMS));
             seen = true;
 
@@ -217,6 +218,23 @@
                 clearInterval(d);
                 return;
               }
+            }
+
+            // If no auth hook exists, but we have written decap-cms-user, reload
+            // once so that Decap can pick up the stored user on boot.
+            try {
+              var stored = localStorage.getItem('decap-cms-user');
+              var reloadFlag = localStorage.getItem('decap_oauth_reload_done');
+              if (stored && !reloadFlag) {
+                console.warn('[OAuth] No CMS auth hook found — reloading once to allow CMS to restore decap-cms-user');
+                // mark reload so we don't loop
+                localStorage.setItem('decap_oauth_reload_done', '1');
+                setTimeout(function () { window.location.reload(); }, 250);
+                clearInterval(d);
+                return;
+              }
+            } catch (e) {
+              console.error('[OAuth] Error while considering reload:', e);
             }
           }
           // stop after 30s
@@ -250,6 +268,7 @@
             <div style="margin-bottom:6px"><b>OAuth Debug</b></div>
             <div id="oauth-debug-info" style="max-width:260px;white-space:pre-wrap;margin-bottom:6px"></div>
             <button id="oauth-debug-deliver" style="margin-right:6px">Deliver payload</button>
+            <button id="oauth-debug-reload" style="margin-right:6px">Force reload</button>
             <button id="oauth-debug-clear">Clear storage</button>
           `;
           document.body.appendChild(panel);
@@ -262,7 +281,9 @@
             var payload = localStorage.getItem('decap_oauth_payload');
             var token = localStorage.getItem('decap_token');
             var user = localStorage.getItem('decap-cms-user');
+            var reloadDone = localStorage.getItem('decap_oauth_reload_done');
             info.textContent = 'payload: ' + (payload || '(none)') + '\n' + 'token: ' + (token || '(none)') + '\n' + 'decap-cms-user: ' + (user || '(none)') + '\n' + 'cookie: ' + (document.cookie || '(none)');
+            if (reloadDone) info.textContent += '\nreload-done: ' + reloadDone;
           }
 
           btn.addEventListener('click', function () {
@@ -280,10 +301,18 @@
             refreshInfo();
           });
 
+          var reloadBtn = panel.querySelector('#oauth-debug-reload');
+          reloadBtn.addEventListener('click', function () {
+            if (!confirm('Reload the admin page now?')) return;
+            try { localStorage.setItem('decap_oauth_reload_done', '1'); } catch (e) {}
+            window.location.reload();
+          });
+
           clearBtn.addEventListener('click', function () {
             localStorage.removeItem('decap_oauth_payload');
             localStorage.removeItem('decap_token');
             localStorage.removeItem('decap-cms-user');
+            localStorage.removeItem('decap_oauth_reload_done');
             refreshInfo();
             alert('Cleared payload/token from localStorage');
           });
@@ -328,6 +357,45 @@
             }
           });
         }
+
+        // Hide the login button if a user is already present (or when stored)
+        function updateLoginButtonVisibility() {
+          try {
+            var btn = document.getElementById('gh-login');
+            if (!btn) return;
+            // If Decap-local user exists, hide the button
+            var user = localStorage.getItem('decap-cms-user');
+            if (user) {
+              btn.style.display = 'none';
+              return;
+            }
+
+            // If CMS exposes a current user or similar, hide as well (best-effort)
+            if (window.CMS) {
+              try {
+                if (typeof window.CMS.currentUser === 'function') {
+                  var cu = window.CMS.currentUser();
+                  if (cu) { btn.style.display = 'none'; return; }
+                } else if (window.CMS.user || window.CMS.currentUser) {
+                  btn.style.display = 'none';
+                  return;
+                }
+              } catch (e) {
+                // ignore; we only try best-effort checks
+              }
+            }
+
+            // otherwise show
+            btn.style.display = '';
+          } catch (e) { console.warn('[OAuth] updateLoginButtonVisibility failed', e); }
+        }
+
+        // Update visibility now and when storage changes
+        updateLoginButtonVisibility();
+        window.addEventListener('storage', function (e) {
+          if (!e || (e.key !== 'decap-cms-user' && e.key !== 'decap_oauth_payload' && e.key !== 'decap_token')) return;
+          updateLoginButtonVisibility();
+        });
       })();
     </script>
 
