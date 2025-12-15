@@ -16,6 +16,59 @@
   </head>
 
   <body>
+    
+<script>
+  (function () {
+    // Chỉ nhận message từ đúng origin của site
+    var allowedOrigin = window.location.origin;
+
+    // Gắn listener sớm (trước khi mở popup)
+    window.addEventListener('message', function (event) {
+      try {
+        if (event.origin !== allowedOrigin) {
+          console.warn('Bỏ qua message từ origin lạ:', event.origin);
+          return;
+        }
+
+        var data = String(event.data || '');
+        // 4 format callback hiện có
+        var prefix1 = 'authorization:github:success:';
+        var prefix2 = 'netlify-cms-oauth-provider:';
+        var prefix3 = 'authorization:github:access_token:';
+
+        if (data.startsWith(prefix1) || data.startsWith(prefix2)) {
+          // Dạng JSON payload
+          var jsonStr = data.substring(data.indexOf('{'));
+          var payload = JSON.parse(jsonStr);
+          console.log('[OAuth] Nhận JSON payload:', payload);
+
+          // Ví dụ: lưu token vào localStorage cho Decap CMS (tuỳ biến theo CMS của bạn)
+          localStorage.setItem('decap_oauth', JSON.stringify(payload));
+
+          // Nếu trang admin có hàm xử lý đăng nhập → gọi nó ở đây
+          // window.CMS && CMS.authCallback && CMS.authCallback(payload);
+
+          alert('Đăng nhập GitHub hoàn tất!');
+          // Nếu popup vẫn mở, callback có thể tự đóng: window.close();
+        } else if (data.startsWith(prefix3) || data.startsWith(prefix1 + 'ghp_')) {
+          // Dạng chỉ có token chuỗi
+          var token = data.substring(data.lastIndexOf(':') + 1);
+          console.log('[OAuth] Nhận token chuỗi:', token);
+
+          localStorage.setItem('decap_token', token);
+          alert('Đăng nhập GitHub hoàn tất (token chuỗi)!');
+          // window.close();
+        } else {
+          console.log('Message không khớp format mong đợi:', data);
+        }
+      } catch (e) {
+        console.error('Lỗi parse message:', e);
+      }
+    }, false);
+  })();
+</script>
+``
+
     <!-- NẠP ỨNG DỤNG Decap CMS TỪ CDN (ghi rõ phiên bản @3) -->
     <script src="https://unpkg.com/decap-cms@3/dist/decap-cms.js"></script>
   </body>
