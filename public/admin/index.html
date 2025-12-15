@@ -426,7 +426,11 @@
 
               var json = await resp.json();
               if (!json.ok) {
-                alert('Lỗi tạo bài: ' + (json.error || JSON.stringify(json)));
+                if (json.error === 'missing_api_key') {
+                  alert('OPENAI_API_KEY chưa được cấu hình trên server. Xem docs/ai.md để biết cách cài đặt hoặc chạy scripts/enable-dev-openai.sh cho local dev.');
+                } else {
+                  alert('Lỗi tạo bài: ' + (json.error || JSON.stringify(json)));
+                }
                 return json;
               }
 

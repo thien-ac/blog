@@ -51,3 +51,22 @@ Notes on providers
 
 - Provider priority: prefer `OPENAI_API_KEY` (text + images). If not available, the server will fall back to `BINGAI_API_KEY` for text and `GENMINI_API_KEY` for images when configured. GitHub Copilot/other providers are not directly integrated yet.
 - `AI_ADMIN_SECRET` — (tuỳ chọn) If set, requests to `/api/ai/generate` must include `{ secret: '<value>' }` in the JSON body to be allowed. This helps prevent public abuse.
+
+Cài đặt `OPENAI_API_KEY`
+
+- Trên môi trường production (Vercel / Netlify / Render / Fly): thêm biến môi trường `OPENAI_API_KEY` trong dashboard hosting với giá trị là OpenAI API key của bạn. Tên biến phải chính xác là `OPENAI_API_KEY`.
+
+- Ví dụ:
+  - Vercel: Project → Settings → Environment Variables → tạo `OPENAI_API_KEY`.
+  - Netlify: Site settings → Build & deploy → Environment → thêm `OPENAI_API_KEY`.
+  - GitHub Actions: thêm `OPENAI_API_KEY` vào `Secrets` của repository và truyền vào workflow nếu cần.
+
+Chạy local (phát triển)
+
+- Để phát triển mà không có API key thật, bạn có thể bật mock provider:
+  - Thêm `DEV_USE_FAKE_OPENAI=1` vào file `.env.local` hoặc chạy `scripts/enable-dev-openai.sh` (sẽ tạo `.env.local` với `DEV_USE_FAKE_OPENAI=1` và `OPENAI_API_KEY=dev-key`).
+  - Lưu ý: `dev-key` chỉ dành cho phát triển cục bộ — không dùng trong production.
+
+Xử lý lỗi
+
+- Nếu server chưa cấu hình `OPENAI_API_KEY`, endpoint `/api/ai/generate` hoặc `/api/ai/chat` sẽ trả lỗi `missing_api_key`. Kiểm tra hướng dẫn ở trên để cấu hình biến môi trường hoặc bật chế độ phát triển.
