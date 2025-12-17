@@ -1,17 +1,17 @@
 ---
-id: 01KCP5QTCBVGVMW32YY70QZH83
+id: 01KCP78SQ951GN7GT3K7TK1QFV
 title: lám sao để khỏe mạnh
 slug: lam-sao-e-khoe-manh
 published: 2025-12-17 19:49
-updated: 2025-12-17 19:50
-description: Bài viết hướng dẫn các bước đơn giản để duy trì sức khỏe tốt.
-image: ""
+updated: 2025-12-17 20:16
+image: https://dummyimage.com/1200x630/0b7285/ffffff&text=l%C3%A1m%20sao%20%C4%91%E1%BB%83%20kh%E1%BB%8Fe%20m%E1%BA%A1nh
 tags: []
 category: ""
 author: hopthurac
 draft: false
 lang: vi
 canonical: ""
+description: Bài viết hướng dẫn các bước đơn giản để duy trì sức khỏe tốt.
 ---
 
 # Làm Sao Để Khỏe Mạnh
