@@ -77,7 +77,7 @@
       <button id="ai-create-auto" type="button" title="AI tự tạo & publish" style="padding:.5rem .75rem;font-size:14px;">Tạo AI (Auto)</button>
     </div>
 
-    <!-- ===== Login + AI create + Floating + Chat ===== -->
+    <!-- ===== Login + AI create + Floating ===== -->
     <script>
       (function(){
         // Login popup
@@ -155,17 +155,6 @@
           refresh(); window.addEventListener('storage', refresh);
         })();
 
-        // Auto create button
-        var autoBtn = document.getElementById('ai-create-auto');
-        if (autoBtn) {
-          autoBtn.addEventListener('click', async function(){
-            if (!confirm('Tạo bài tự động và publish ngay?')) return;
-            var count = prompt('Số lượng hình ảnh (mặc định 2):', '2');
-            var n = parseInt(count, 10); if (isNaN(n) || n < 0) n = 2;
-            await window._decap_ai_create({ auto:true, commit:true, imagesCount:n });
-          });
-        }
-
         // Floating quick-access
         function createFloating(){
           try {
@@ -227,16 +216,103 @@
     <!-- Widgets & Editor Components -->
     <!-- ========================= -->
     <script>
+      // ULID
       function ulid(){ const abc='0123456789ABCDEFGHJKMNPQRSTVWXYZ'; const encTime=(n,len=10)=>{ let s=''; while(len--){ s=abc[n%32]+s; n=Math.floor(n/32);} return s; }; const encRand=(len=16)=>Array.from({length:len},()=>abc[Math.floor(Math.random()*32)]).join(''); return encTime(Date.now())+encRand(); }
       const UlidControl=createClass({ componentDidMount:function(){ if(!this.props.value) this.props.onChange(ulid()); }, handleNew:function(){ this.props.onChange(ulid()); }, render:function(){ return h('div',{},[ h('input',{ id:this.props.forID, className:this.props.classNameWrapper, type:'text', readOnly:true, value:this.props.value||'' }), h('button',{ type:'button', onClick:this.handleNew, style:{ marginTop:'6px' } },'Tạo ULID mới') ]); } });
       CMS.registerWidget('ulid', UlidControl);
 
-      const SlugControl=createClass({ toSlug:function(s){ return (s||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().trim().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-'); }, handleGen:function(){ const titleField=this.props.field.get('source')||'title'; const entry=this.props.entry||null; const title=entry && entry.getIn(['data', titleField]); const slug=this.toSlug(title||''); if(slug) this.props.onChange(slug); }, render:function(){ return h('div',{},[ h('input',{ id:this.props.forID, className:this.props.classNameWrapper, type:'text', value:this.props.value||'', onInput:e=>this.props.onChange(e.target.value) }), h('button',{ type:'button', onClick:this.handleGen, style:{ marginTop:'6px' } },'Tạo từ tiêu đề') ]); } });
-      CMS.registerWidget('slugify', SlugControl);
+      // AutoSlug: tự cập nhật từ Title
+      const AutoSlugControl = createClass({
+        toSlug: function (s) {
+          return (s || '')
+            .normalize('NFD').replace(/\p{Diacritic}/gu, '')
+            .toLowerCase().trim()
+            .replace(/[^a-z0-9\s-]/g, '')
+            .replace(/\s+/g, '-').replace(/-+/g, '-');
+        },
+        componentDidMount: function () {
+          this._timer = setInterval(() => {
+            const entry = this.props.entry; if (!entry) return;
+            const curSlug = String(this.props.value || '').trim();
+            const titleField = this.props.field.get('source') || 'title';
+            const title = entry.getIn(['data', titleField]);
+            const nextSlug = this.toSlug(title || '');
+            if (nextSlug && (!curSlug || curSlug !== nextSlug)) {
+              this.props.onChange(nextSlug);
+            }
+          }, 500);
+        },
+        componentWillUnmount: function () { if (this._timer) clearInterval(this._timer); },
+        render: function () {
+          return h('input', {
+            id: this.props.forID,
+            className: this.props.classNameWrapper,
+            type: 'text', value: this.props.value || '',
+            onInput: e => this.props.onChange(e.target.value),
+            placeholder: 'Tự sinh từ Title'
+          });
+        },
+      });
+      CMS.registerWidget('autoslug', AutoSlugControl);
 
+      // AutoBody: tự gọi AI điền nội dung theo Title
+      const AutoBodyControl = createClass({
+        getInitialState: function () { return { loading: false, lastTitle: '' }; },
+        buildPrompt: function (title) {
+          if (window.buildBodyPrompt) return window.buildBodyPrompt(title);
+          return [
+            `Viết bài blog Markdown về: "${title}".`,
+            `Giọng thân thiện, rõ ràng cho người mới; ~500–700 từ.`,
+            `Cấu trúc: H1 (tiêu đề), mở bài, H2: bối cảnh, H2: các bước (bullet), H2: lưu ý, kết luận.`,
+            `Định dạng Markdown chuẩn, không dùng HTML thừa.`
+          ].join('\n');
+        },
+        fetchAI: async function (title) {
+          this.setState({ loading: true });
+          try {
+            const resp = await fetch('/api/ai/generate', {
+              method: 'POST', headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ prompt: this.buildPrompt(title), commit: false })
+            });
+            const json = await resp.json();
+            if (json.ok && json.content) this.props.onChange(json.content);
+          } catch (e) { console.warn('[AutoBody] AI lỗi:', e); }
+          finally { this.setState({ loading: false, lastTitle: title }); }
+        },
+        componentDidMount: function () {
+          const entry = this.props.entry;
+          const curBody = String(this.props.value || '').trim();
+          const title = entry && entry.getIn(['data', 'title']);
+          if (!curBody && title) this.fetchAI(String(title));
+          this._timer = setInterval(() => {
+            const e = this.props.entry; if (!e) return;
+            const t = String(e.getIn(['data', 'title']) || '');
+            const curBody2 = String(this.props.value || '').trim();
+            if (t && !curBody2 && t !== this.state.lastTitle) this.fetchAI(t);
+          }, 800);
+        },
+        componentWillUnmount: function () { if (this._timer) clearInterval(this._timer); },
+        render: function () {
+          return h('div', { className: 'autobody-widget' }, [
+            h('textarea', {
+              id: this.props.forID,
+              className: this.props.classNameWrapper,
+              rows: 12,
+              placeholder: this.state.loading ? 'Đang tạo nội dung...' : 'Nội dung sẽ tự tạo từ Title',
+              value: this.props.value || '',
+              onInput: e => this.props.onChange(e.target.value)
+            }),
+            this.state.loading ? h('div', { style: { marginTop: '6px', color: '#6b7280' } }, 'Đang gọi AI...') : null
+          ]);
+        },
+      });
+      CMS.registerWidget('autobody', AutoBodyControl);
+
+      // (Optional) AI widget thủ công
       const AiControl=createClass({ getInitialState:function(){ return { loading:false, prompt:'' }; }, handleGenerate:async function(){ if(!this.state.prompt) return alert('Nhập gợi ý cho AI'); this.setState({ loading:true }); try { const resp=await fetch('/api/ai/generate',{ method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ prompt:this.state.prompt, commit:false }) }); const json=await resp.json(); if(json.ok && json.content) this.props.onChange(json.content); else alert('AI lỗi: ' + (json.error || 'unknown')); } catch(e){ alert(e.message); } finally { this.setState({ loading:false }); } }, render:function(){ return h('div',{ className:'ai-widget' },[ h('textarea',{ rows:3, placeholder:'Mô tả/ngữ cảnh để AI viết…', value:this.state.prompt, onInput:e=>this.setState({ prompt:e.target.value }) }), h('button',{ type:'button', disabled:this.state.loading, onClick:this.handleGenerate, style:{ marginTop:'6px' } }, this.state.loading?'Đang tạo…':'AI đổ nội dung vào trường này' ) ]); } });
       CMS.registerWidget('ai', AiControl);
 
+      // Editor components
       CMS.registerEditorComponent({ id:'youtube', label:'YouTube', fields:[{ name:'id', label:'Video ID', widget:'string' }], pattern:/^<iframe.*youtube\.com\/embed\/([^\"]+).*<\/iframe>$/m, fromBlock:(m)=>({ id:m[1] }), toBlock:({ id })=>`https://www.youtube.com/embed/${id}</iframe>`, toPreview:({ id })=>`https://img.youtube.com/vi/${id}/hqdefault.jpg` });
       CMS.registerEditorComponent({ id:'callout', label:'Callout', fields:[ { name:'type', label:'Loại', widget:'select', options:['info','warning','success'] }, { name:'text', label:'Nội dung', widget:'text' } ], pattern:/^<div class=\"callout (info|warning|success)\">([\s\S]*?)<\/div>$/m, fromBlock:m=>({ type:m[1], text:m[2].trim() }), toBlock:({ type, text })=>`<div class=\"callout ${type}\">\n${text}\n<\/div>`, toPreview:({ type, text })=>`<div class=\"callout ${type}\" style=\"padding:.75rem;border-left:4px solid #888;background:#f8fafc\">${text}<\/div>` });
       CMS.registerEditorComponent({ id:'gallery', label:'Gallery', fields:[{ name:'images', label:'Ảnh', widget:'list', field:{ name:'src', label:'URL', widget:'string' } }], pattern:/^<div class=\"gallery\">([\s\S]*?)<\/div>$/m, fromBlock:(m)=>{ const imgs=Array.from(m[1].matchAll(/<img[^>]*src=\"([^\"]+)\"[^>]*>/g)).map(i=>({ src:i[1] })); return { images: imgs }; }, toBlock:({ images=[] })=>`<div class=\"gallery\">\n${images.map(i=>`${i.src}`).join('\n')}\n<\/div>`, toPreview:({ images=[] })=>`<div class=\"gallery\" style=\"display:grid;grid-template-columns:repeat(3,1fr);gap:8px\">${images.map(i=>`${i.src}`).join('')}<\/div>` });
@@ -249,19 +325,10 @@
       // Helpers
       function slugify(input){ return (input||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().trim().replace(/[^a-z0-9\s-]/g,'').replace(/\s+/g,'-').replace(/-+/g,'-'); }
       function formatNow(){ const d=new Date(); const pad=(n)=>String(n).padStart(2,'0'); return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`; }
-      function getCurrentCollection(){
-        // Dựa vào location.hash của Decap CMS: #/collections/<name>/...
-        var hash = (location.hash || '');
-        var m = hash.match(/#\/collections\/([^\/]+)/);
-        return m ? m[1] : 'blog'; // fallback 'blog'
-      }
+      function getCurrentCollection(){ var hash=(location.hash||''); var m=hash.match(/#\/collections\/([^\/]+)/); return m?m[1]:'blog'; }
 
-      // Store keys
-      const PROMPT_STORE_KEYS={
-        preset:(col)=>`ai_prompt_preset:${col}`,
-        bodyCustom:(col)=>`ai_prompt_custom_body:${col}`,
-        coverCustom:(col)=>`ai_prompt_custom_cover:${col}`
-      };
+      // Store keys (per-collection)
+      const PROMPT_STORE_KEYS={ preset:(col)=>`ai_prompt_preset:${col}`, bodyCustom:(col)=>`ai_prompt_custom_body:${col}`, coverCustom:(col)=>`ai_prompt_custom_cover:${col}` };
       function getSelectedPreset(col){ return localStorage.getItem(PROMPT_STORE_KEYS.preset(col)) || 'friendly'; }
       function setSelectedPreset(col,v){ localStorage.setItem(PROMPT_STORE_KEYS.preset(col), v); }
       function getCustomBodyPrompt(col){ return localStorage.getItem(PROMPT_STORE_KEYS.bodyCustom(col)) || ''; }
@@ -269,12 +336,11 @@
       function getCustomCoverPrompt(col){ return localStorage.getItem(PROMPT_STORE_KEYS.coverCustom(col)) || ''; }
       function setCustomCoverPrompt(col,v){ localStorage.setItem(PROMPT_STORE_KEYS.coverCustom(col), v||''); }
 
-      function buildBodyPrompt(title){
-        const col = getCurrentCollection();
-        const preset = getSelectedPreset(col);
-        if (preset === 'expert_seo') {
-          const keywords = []; // TODO: nạp từ settings nếu muốn
-          return [
+      // Build prompts
+      window.buildBodyPrompt = function(title){
+        const col=getCurrentCollection(); const preset=getSelectedPreset(col);
+        if (preset==='expert_seo') {
+          const keywords=[]; return [
             `Viết bài blog Markdown chuyên sâu về: "${title}"`,
             `Giọng văn: chuyên gia, súc tích, dẫn chứng khi cần.`,
             `Bao gồm:`,
@@ -288,196 +354,48 @@
             `Định dạng: Markdown; tránh chèn liên kết ngoài nếu không cần.`,
           ].join('\n');
         }
-        if (preset === 'short_image') {
+        if (preset==='short_image') {
           return [
             `Viết bài blog Markdown ngắn gọn về: "${title}" (300–500 từ).`,
-            `Sau H1, chèn hình minh hoạ (giữ dưới dạng URL hoặc đường dẫn asset).`,
+            `Sau H1, chèn hình minh hoạ (URL/asset).`,
             `Cấu trúc: mở bài, 2–3 mục nội dung (H2/H3), kết luận ngắn.`,
             `Giọng thân thiện, dễ tiếp cận.`,
           ].join('\n');
         }
-        if (preset === 'custom') {
-          const custom = getCustomBodyPrompt(col).trim();
-          if (custom) return custom.replace(/\$TITLE\b/g, title);
+        if (preset==='custom') {
+          const custom=(getCustomBodyPrompt(col)||'').trim(); if (custom) return custom.replace(/\$TITLE\b/g,title);
         }
-        // friendly default
         return [
           `Viết bài blog Markdown về: "${title}".`,
           `Giọng thân thiện, rõ ràng cho người mới; độ dài ~500–700 từ.`,
-          `Cấu trúc:`,
-          `- H1: tiêu đề`,
-          `- Mở bài (2–3 câu)`,
-          `- H2: Bối cảnh/Khái niệm chính`,
-          `- H2: Các bước thực hiện (bullet hoặc numbered list)`,
-          `- H2: Lưu ý & mẹo`,
-          `- Kết luận (1 đoạn ngắn)`,
-          `Định dạng: Markdown chuẩn, không dùng HTML.`,
+          `Cấu trúc: H1, mở bài, H2: bối cảnh, H2: các bước (bullet), H2: lưu ý, kết luận.`,
+          `Định dạng Markdown chuẩn, không dùng HTML thừa.`,
         ].join('\n');
-      }
-      function buildCoverPrompt(title){
-        const col = getCurrentCollection();
-        const preset = getSelectedPreset(col);
-        if (preset === 'custom') {
-          const custom = getCustomCoverPrompt(col).trim();
-          if (custom) return custom.replace(/\$TITLE\b/g, title);
-        }
-        return [
-          `Tạo ảnh bìa 1200x630, phong cách minimal, tương phản cao.`,
-          `Chủ đề: "${title}". Không chèn chữ.`,
-          `Bố cục rõ ràng, nền trầm; có điểm nhấn liên quan.`,
-          `Xuất PNG/JPG chất lượng cao.`,
-        ].join('\n');
-      }
+      };
+      function buildCoverPrompt(title){ const col=getCurrentCollection(); const preset=getSelectedPreset(col); if (preset==='custom'){ const c=(getCustomCoverPrompt(col)||'').trim(); if(c) return c.replace(/\$TITLE\b/g,title);} return [`Tạo ảnh bìa 1200x630, phong cách minimal, tương phản cao.`,`Chủ đề: "${title}". Không chèn chữ.`,`Bố cục rõ ràng, nền trầm; có điểm nhấn liên quan.`,`Xuất PNG/JPG chất lượng cao.`].join('\n'); }
 
-      // Rate-limit: tránh gọi AI nhiều lần cho cùng entry
+      // Rate-limit (per save)
       const AI_LOCKS = { body: false, cover: false };
-      function getAutofillKey(){
-        const col = getCurrentCollection();
-        // lấy slug từ URL nếu có
-        var hash = location.hash || ''; var m = hash.match(/entries\/([^\/?#]+)/);
-        var slug = m ? m[1] : 'new';
-        return `ai_autofilled:${col}:${slug}`;
-      }
+      function getAutofillKey(){ const col=getCurrentCollection(); var hash=location.hash||''; var m=hash.match(/entries\/([^\/?#]+)/); var slug=m?m[1]:'new'; return `ai_autofilled:${col}:${slug}`; }
+      async function aiWriteFromTitle(title){ if(AI_LOCKS.body) return ''; AI_LOCKS.body=true; try{ const resp=await fetch('/api/ai/generate',{ method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ prompt: window.buildBodyPrompt(title), commit:false }) }); const j=await resp.json(); return j && j.ok ? (j.content||'') : ''; } catch(e){ return ''; } finally { AI_LOCKS.body=false; } }
+      async function aiCoverFromTitle(title){ if(AI_LOCKS.cover) return ''; AI_LOCKS.cover=true; try{ const r1=await fetch('/api/ai/generate-image',{ method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ prompt: buildCoverPrompt(title), commit:true }) }); const j1=await r1.json(); if(j1 && j1.ok && j1.path) return j1.path; } catch(e){} try{ const r2=await fetch('/api/ai/generate',{ method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify({ prompt: buildCoverPrompt(title), commit:true, imagesCount:1, onlyAssets:true }) }); const j2=await r2.json(); if(j2 && j2.ok && Array.isArray(j2.assets) && j2.assets.length) return j2.assets[0].path || j2.assets[0].url || ''; } catch(e){} finally { AI_LOCKS.cover=false; } const t=encodeURIComponent(title); return `https://dummyimage.com/1200x630/0b7285/ffffff&text=${t}`; }
 
-      async function aiWriteFromTitle(title){
-        if (AI_LOCKS.body) return '';
-        AI_LOCKS.body = true;
-        try {
-          const resp = await fetch('/api/ai/generate', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: buildBodyPrompt(title), commit: false })
-          });
-          const j = await resp.json();
-          return j && j.ok ? (j.content || '') : '';
-        } catch(e){ return ''; }
-        finally { AI_LOCKS.body = false; }
-      }
-      async function aiCoverFromTitle(title){
-        if (AI_LOCKS.cover) return '';
-        AI_LOCKS.cover = true;
-        try {
-          const r1 = await fetch('/api/ai/generate-image', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: buildCoverPrompt(title), commit: true })
-          });
-          const j1 = await r1.json();
-          if (j1 && j1.ok && j1.path) return j1.path;
-        } catch(e){}
-        try {
-          const r2 = await fetch('/api/ai/generate', {
-            method: 'POST', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt: buildCoverPrompt(title), commit: true, imagesCount: 1, onlyAssets: true })
-          });
-          const j2 = await r2.json();
-          if (j2 && j2.ok && Array.isArray(j2.assets) && j2.assets.length) return j2.assets[0].path || j2.assets[0].url || '';
-        } catch(e){}
-        finally { AI_LOCKS.cover = false; }
-        const t = encodeURIComponent(title);
-        return `https://dummyimage.com/1200x630/0b7285/ffffff&text=${t}`;
-      }
+      // Hook preSave: bảo hiểm nếu UI chưa kịp điền
+      CMS.registerEventListener({ name:'preSave', handler: async ({ entry })=>{
+        let data=entry.get('data'); const title=String(data.get('title')||'').trim();
+        if(title && (!data.get('slug') || String(data.get('slug')).trim()==='')) data=data.set('slug', slugify(title));
+        const now=formatNow(); if(!data.get('published') || String(data.get('published')).trim()==='') data=data.set('published', now); data=data.set('updated', now);
+        const key=getAutofillKey(); const already=localStorage.getItem(key)==='1';
+        const body=String(data.get('body')||'').trim(); if(title && !body && !already){ try{ const content=await aiWriteFromTitle(title); if(content) data=data.set('body', content); }catch(e){} }
+        const image=String(data.get('image')||'').trim(); if(title && !image && !already){ try{ const img=await aiCoverFromTitle(title); if(img) data=data.set('image', img); }catch(e){} }
+        try{ localStorage.setItem(key, '1'); }catch(e){}
+        return data; } });
 
-      // Hook preSave
-      CMS.registerEventListener({
-        name: 'preSave',
-        handler: async ({ entry }) => {
-          let data = entry.get('data');
-          const title = String(data.get('title') || '').trim();
+      // Prompt Picker (per-collection)
+      (function createPromptPicker(){ const btn=document.createElement('button'); btn.id='ai-prompt-picker'; btn.title='Chọn Prompt AI'; btn.textContent='Prompt'; Object.assign(btn.style,{ position:'fixed', right:'12px', bottom:'128px', zIndex:100001, padding:'.5rem .65rem', borderRadius:'6px', background:'#374151', color:'#fff', border:'none', boxShadow:'0 2px 6px rgba(0,0,0,0.2)', cursor:'pointer' }); btn.addEventListener('click', openPromptModal); document.body.appendChild(btn); function openPromptModal(){ if(document.getElementById('ai-prompt-modal')) return showModal(); const m=document.createElement('div'); m.id='ai-prompt-modal'; Object.assign(m.style,{ position:'fixed', right:'12px', bottom:'180px', width:'480px', maxHeight:'72vh', zIndex:100002, background:'#fff', border:'1px solid rgba(0,0,0,0.08)', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.15)', display:'flex', flexDirection:'column' }); m.innerHTML=`<div style="padding:8px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between"><strong>AI Prompt Settings</strong><button id="ai-prompt-close" style="font-size:14px">×</button></div><div style="padding:8px;overflow:auto;flex:1;font-size:13px"><div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;margin-bottom:10px"><label style="font-weight:600">Collection hiện tại</label><input id="ai-prompt-collection" readonly style="padding:.4rem;border:1px solid #ddd;border-radius:6px" /></div><label style="display:block;margin-bottom:6px;font-weight:600">Preset</label><select id="ai-prompt-preset" style="width:100%;padding:.4rem;border:1px solid #ddd;border-radius:6px;margin-bottom:12px"><option value="friendly">Thân thiện (khuyến nghị)</option><option value="expert_seo">Chuyên gia + SEO</option><option value="short_image">Ngắn gọn + gợi ý ảnh trong body</option><option value="custom">Tùy biến (dùng văn bản bên dưới)</option></select><label style="display:block;margin:10px 0 6px;font-weight:600">Body Prompt (Custom)</label><textarea id="ai-prompt-body" rows="6" placeholder="Nhập prompt tuỳ biến cho nội dung. Dùng $TITLE để chèn tiêu đề." style="width:100%;padding:.5rem;border:1px solid #ddd;border-radius:6px"></textarea><label style="display:block;margin:10px 0 6px;font-weight:600">Cover Prompt (Custom)</label><textarea id="ai-prompt-cover" rows="4" placeholder="Nhập prompt tuỳ biến cho ảnh bìa. Dùng $TITLE để chèn tiêu đề." style="width:100%;padding:.5rem;border:1px solid #ddd;border-radius:6px"></textarea></div><div style="padding:8px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end"><button id="ai-prompt-reset" style="padding:.45rem .7rem">Mặc định</button><button id="ai-prompt-save" style="padding:.45rem .7rem;background:#0b7285;color:#fff;border:none;border-radius:6px">Lưu</button></div>`; document.body.appendChild(m); const col=getCurrentCollection(); const presetSel=m.querySelector('#ai-prompt-preset'); const bodyArea=m.querySelector('#ai-prompt-body'); const coverArea=m.querySelector('#ai-prompt-cover'); const colInput=m.querySelector('#ai-prompt-collection'); colInput.value=col; presetSel.value=getSelectedPreset(col); bodyArea.value=getCustomBodyPrompt(col); coverArea.value=getCustomCoverPrompt(col); m.querySelector('#ai-prompt-close').addEventListener('click', ()=>{ m.style.display='none'; }); m.querySelector('#ai-prompt-save').addEventListener('click', ()=>{ setSelectedPreset(col, presetSel.value); setCustomBodyPrompt(col, bodyArea.value); setCustomCoverPrompt(col, coverArea.value); alert('Đã lưu prompt cho collection '+col+'.'); m.style.display='none'; }); m.querySelector('#ai-prompt-reset').addEventListener('click', ()=>{ presetSel.value='friendly'; bodyArea.value=''; coverArea.value=''; }); showModal(); } function showModal(){ const m=document.getElementById('ai-prompt-modal'); if(m) m.style.display='flex'; } })();
 
-          // slug
-          if (title && (!data.get('slug') || String(data.get('slug')).trim() === '')) data = data.set('slug', slugify(title));
-
-          // dates
-          const now = formatNow();
-          if (!data.get('published') || String(data.get('published')).trim() === '') data = data.set('published', now);
-          data = data.set('updated', now);
-
-          // Only auto-fill if not already done (per entry)
-          const autofillKey = getAutofillKey();
-          const already = localStorage.getItem(autofillKey) === '1';
-
-          // body
-          const body = String(data.get('body') || '').trim();
-          if (title && !body && !already) {
-            try { const content = await aiWriteFromTitle(title); if (content) data = data.set('body', content); } catch(e){}
-          }
-
-          // cover
-          const image = String(data.get('image') || '').trim();
-          if (title && !image && !already) {
-            try { const imgPath = await aiCoverFromTitle(title); if (imgPath) data = data.set('image', imgPath); } catch(e){}
-          }
-
-          // Đánh dấu đã auto-fill để lần lưu sau không gọi lại
-          try { localStorage.setItem(autofillKey, '1'); } catch(e){}
-
-          return data;
-        }
-      });
-
-      // ===== Prompt Picker (per-collection) =====
-      (function createPromptPicker(){
-        // Floating launcher
-        const btn=document.createElement('button'); btn.id='ai-prompt-picker'; btn.title='Chọn Prompt AI'; btn.textContent='Prompt';
-        Object.assign(btn.style,{ position:'fixed', right:'12px', bottom:'128px', zIndex:100001, padding:'.5rem .65rem', borderRadius:'6px', background:'#374151', color:'#fff', border:'none', boxShadow:'0 2px 6px rgba(0,0,0,0.2)', cursor:'pointer' });
-        btn.addEventListener('click', openPromptModal); document.body.appendChild(btn);
-        function openPromptModal(){ if(document.getElementById('ai-prompt-modal')) return showModal(); const m=document.createElement('div'); m.id='ai-prompt-modal'; Object.assign(m.style,{ position:'fixed', right:'12px', bottom:'180px', width:'480px', maxHeight:'72vh', zIndex:100002, background:'#fff', border:'1px solid rgba(0,0,0,0.08)', borderRadius:'8px', boxShadow:'0 8px 24px rgba(0,0,0,0.15)', display:'flex', flexDirection:'column' }); m.innerHTML=`
-          <div style="padding:8px;border-bottom:1px solid #eee;display:flex;align-items:center;justify-content:space-between">
-            <strong>AI Prompt Settings</strong>
-            <button id="ai-prompt-close" style="font-size:14px">×</button>
-          </div>
-          <div style="padding:8px;overflow:auto;flex:1;font-size:13px">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;align-items:center;margin-bottom:10px">
-              <label style="font-weight:600">Collection hiện tại</label>
-              <input id="ai-prompt-collection" readonly style="padding:.4rem;border:1px solid #ddd;border-radius:6px" />
-            </div>
-            <label style="display:block;margin-bottom:6px;font-weight:600">Preset</label>
-            <select id="ai-prompt-preset" style="width:100%;padding:.4rem;border:1px solid #ddd;border-radius:6px;margin-bottom:12px">
-              <option value="friendly">Thân thiện (khuyến nghị)</option>
-              <option value="expert_seo">Chuyên gia + SEO</option>
-              <option value="short_image">Ngắn gọn + gợi ý ảnh trong body</option>
-              <option value="custom">Tùy biến (dùng văn bản bên dưới)</option>
-            </select>
-
-            <label style="display:block;margin:10px 0 6px;font-weight:600">Body Prompt (Custom)</label>
-            <textarea id="ai-prompt-body" rows="6" placeholder="Nhập prompt tuỳ biến cho nội dung. Dùng $TITLE để chèn tiêu đề." style="width:100%;padding:.5rem;border:1px solid #ddd;border-radius:6px"></textarea>
-
-            <label style="display:block;margin:10px 0 6px;font-weight:600">Cover Prompt (Custom)</label>
-            <textarea id="ai-prompt-cover" rows="4" placeholder="Nhập prompt tuỳ biến cho ảnh bìa. Dùng $TITLE để chèn tiêu đề." style="width:100%;padding:.5rem;border:1px solid #ddd;border-radius:6px"></textarea>
-          </div>
-          <div style="padding:8px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end">
-            <button id="ai-prompt-reset" style="padding:.45rem .7rem">Mặc định</button>
-            <button id="ai-prompt-save" style="padding:.45rem .7rem;background:#0b7285;color:#fff;border:none;border-radius:6px">Lưu</button>
-          </div>`; document.body.appendChild(m);
-          const col = getCurrentCollection();
-          const presetSel=m.querySelector('#ai-prompt-preset');
-          const bodyArea=m.querySelector('#ai-prompt-body');
-          const coverArea=m.querySelector('#ai-prompt-cover');
-          const colInput=m.querySelector('#ai-prompt-collection'); colInput.value = col;
-          presetSel.value=getSelectedPreset(col);
-          bodyArea.value=getCustomBodyPrompt(col);
-          coverArea.value=getCustomCoverPrompt(col);
-          m.querySelector('#ai-prompt-close').addEventListener('click', ()=>{ m.style.display='none'; });
-          m.querySelector('#ai-prompt-save').addEventListener('click', ()=>{ setSelectedPreset(col, presetSel.value); setCustomBodyPrompt(col, bodyArea.value); setCustomCoverPrompt(col, coverArea.value); alert('Đã lưu prompt cho collection '+col+'.'); m.style.display='none'; });
-          m.querySelector('#ai-prompt-reset').addEventListener('click', ()=>{ presetSel.value='friendly'; bodyArea.value=''; coverArea.value=''; });
-          showModal();
-        }
-        function showModal(){ const m=document.getElementById('ai-prompt-modal'); if(m) m.style.display='flex'; }
-      })();
-
-      // ===== Debug panel (toggle via banner button or ?cms_debug=1) =====
-      function toggleDebugPanel(force){
-        var on = force || location.search.includes('cms_debug=1');
-        if (!on) return;
-        if (document.getElementById('cms-debug')) return;
-        var panel = document.createElement('div'); panel.id='cms-debug';
-        Object.assign(panel.style,{ position:'fixed', left:'12px', bottom:'12px', zIndex:100003, background:'#111827', color:'#fff', padding:'8px', borderRadius:'8px', fontSize:'12px', maxWidth:'360px' });
-        panel.innerHTML = `<div style="margin-bottom:6px"><b>CMS Debug</b></div><div id="cms-debug-info" style="white-space:pre-wrap"></div><div style="margin-top:6px;display:flex;gap:6px"><button id="cms-debug-refresh">Refresh</button><button id="cms-debug-clear">Clear LS</button></div>`;
-        document.body.appendChild(panel);
-        function refresh(){ try { var info = document.getElementById('cms-debug-info'); var user=localStorage.getItem('decap-cms-user'); var mock=localStorage.getItem('decap_ai_use_mock'); var keys=Object.keys(localStorage).filter(k=>k.startsWith('ai_prompt_')||k.startsWith('ai_autofilled:')); info.textContent = 'user: '+(user||'(none)')+'\nmock: '+(mock||'(none)')+'\nprompt-keys:\n - '+(keys.join('\n - ')||'(none)'); } catch(e){} }
-        refresh();
-        document.getElementById('cms-debug-refresh').addEventListener('click', refresh);
-        document.getElementById('cms-debug-clear').addEventListener('click', function(){ ['decap_oauth_payload','decap_token','decap-cms-user'].forEach(k=>localStorage.removeItem(k)); alert('Đã xoá token/payload khỏi localStorage'); refresh(); });
-      }
+      // Debug panel
+      function toggleDebugPanel(force){ var on=force || location.search.includes('cms_debug=1'); if(!on) return; if(document.getElementById('cms-debug')) return; var panel=document.createElement('div'); panel.id='cms-debug'; Object.assign(panel.style,{ position:'fixed', left:'12px', bottom:'12px', zIndex:100003, background:'#111827', color:'#fff', padding:'8px', borderRadius:'8px', fontSize:'12px', maxWidth:'360px' }); panel.innerHTML=`<div style="margin-bottom:6px"><b>CMS Debug</b></div><div id="cms-debug-info" style="white-space:pre-wrap"></div><div style="margin-top:6px;display:flex;gap:6px"><button id="cms-debug-refresh">Refresh</button><button id="cms-debug-clear">Clear LS</button></div>`; document.body.appendChild(panel); function refresh(){ try{ var info=document.getElementById('cms-debug-info'); var user=localStorage.getItem('decap-cms-user'); var mock=localStorage.getItem('decap_ai_use_mock'); var keys=Object.keys(localStorage).filter(k=>k.startsWith('ai_prompt_')||k.startsWith('ai_autofilled:')); info.textContent='user: '+(user||'(none)')+'\nmock: '+(mock||'(none)')+'\nprompt-keys:\n - '+(keys.join('\n - ')||'(none)'); }catch(e){} } refresh(); document.getElementById('cms-debug-refresh').addEventListener('click', refresh); document.getElementById('cms-debug-clear').addEventListener('click', function(){ ['decap_oauth_payload','decap_token','decap-cms-user'].forEach(k=>localStorage.removeItem(k)); alert('Đã xoá token/payload khỏi localStorage'); refresh(); }); }
       toggleDebugPanel(false);
     </script>
   </body>
