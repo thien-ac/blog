@@ -1,21 +1,20 @@
 
 # ===============================
-# Decap CMS config (đã bổ sung)
+# Decap CMS config (Vercel + editorial workflow)
 # ===============================
 
 backend:
   name: github
-  repo: genkun/my-blog      # Giữ repo hiện có của bạn
+  repo: genkun/my-blog
   branch: main
 
-  # Bật squash merge khi publish PR (GitHub)
+  # Squash PR khi publish
   squash_merges: true
 
-  # Nếu bạn có deploy preview, chọn context phù hợp:
-  # preview_context: vercel/deployment
-  # preview_context: netlify/build
+  # Hiển thị đúng Deploy Preview trên GitHub (Vercel)
+  preview_context: vercel/deployment
 
-  # Chuẩn hoá commit messages (nằm dưới backend)
+  # Chuẩn hoá commit messages
   commit_messages:
     create: 'content({{collection}}): add "{{slug}}"'
     update: 'content({{collection}}): update "{{slug}}"'
@@ -24,11 +23,12 @@ backend:
     deleteMedia: 'assets: remove "{{path}}"'
     openAuthoring: '{{message}}'
 
-# Chế độ publish qua PR: Draft → Review → Publish
+# Save → PR → Publish (merge)
 publish_mode: editorial_workflow
 
+# Thư mục media trong repo & URL công khai trên site
 media_folder: "src/assets/images"
-public_folder: "/src/assets/images"
+public_folder: "/assets/images"
 
 editor:
   visualEditing: true
@@ -46,14 +46,14 @@ collections:
     view_groups:
       - { label: "Năm đăng", field: published, pattern: "\\d{4}" }
     fields:
-      - { label: "ID", name: "id", widget: "ulid" }          # widget tuỳ biến
+      - { label: "ID", name: "id", widget: "ulid" }          # yêu cầu đã registerWidget('ulid')
       - { label: "Title", name: "title", widget: "string" }
       - label: "Slug (URL)"
         name: "slug"
-        widget: "slugify"                                     # widget slugify
+        widget: "slugify"                                     # yêu cầu đã registerWidget('slugify')
         hint: "Sinh từ 'Title'"
-      - { label: "Publish Date", name: "published", widget: "datetime", format: "YYYY-MM-DD" }
-      - { label: "Updated", name: "updated", widget: "datetime", format: "YYYY-MM-DD", required: false }
+      - { label: "Publish Date", name: "published", widget: "datetime", format: "YYYY-MM-DD HH:mm" }
+      - { label: "Updated", name: "updated", widget: "datetime", format: "YYYY-MM-DD HH:mm", required: false }
       - { label: "Cover Image", name: "image", widget: "image", required: false }
       - { label: "Tags", name: "tags", widget: "list", required: false }
       - { label: "Category", name: "category", widget: "string", required: false }
@@ -61,8 +61,7 @@ collections:
       - { label: "Draft", name: "draft", widget: "boolean", default: false }
       - { label: "Lang", name: "lang", widget: "string", default: "vi" }
       - { label: "Canonical URL", name: "canonical", widget: "string", required: false }
-      # Body markdown tiêu chuẩn (có thể đổi sang widget 'ai' nếu muốn AI ghi trực tiếp)
-      - { label: "Body", name: "body", widget: "markdown" }
+      - { label: "Body", name: "body", widget: "markdown" }  # AI sẽ tự fill nếu trống (do script preSave)
 
   - name: "pages"
     label: "Pages"
@@ -72,5 +71,4 @@ collections:
     slug: "{{slug}}"
     fields:
       - { label: "Title", name: "title", widget: "string" }
-      # Dùng widget AI để tạo nội dung nhanh
-      - { label: "Body (AI)", name: "body", widget: "ai" }
+     
