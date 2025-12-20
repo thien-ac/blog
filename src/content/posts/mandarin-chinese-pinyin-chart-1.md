@@ -2,7 +2,7 @@
 title: Mandarin Chinese Pinyin Chart
 description: Mandarin Chinese Pinyin Chart
 published: 2025-12-20
-updated: 2025-12-20
+updated: ""
 tags:
   - tiengtrung
   - hoctap
