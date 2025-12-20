@@ -388,8 +388,17 @@
 
           // dates
           const now = formatNow();
-          if (!data.get('published') || String(data.get('published')).trim() === '') data = data.set('published', now);
-          data = data.set('updated', now);
+
+          // published
+          if (!data.get('published') || String(data.get('published')).trim() === '') {
+            data = data.set('published', String(now));
+          }
+
+          // updated
+          data = data.set('updated', String(now));
+
+   
+
 
           // Only auto-fill if not already done (per entry)
           const autofillKey = getAutofillKey();
