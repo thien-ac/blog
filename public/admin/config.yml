@@ -57,19 +57,20 @@ collections:
       - { label: "Title", name: "title", widget: "string" }
       - label: "Slug (URL)"
         name: "slug"
-        widget: "autoslug"
-        hint: "Tự sinh từ Title"
+        widget: "string"
+        hint: "Tự sinh từ Title (sửa tay nếu cần)"
       - { label: "Publish Date", name: "published", widget: "datetime", format: "YYYY-MM-DD HH:mm", default: "{{now}}" }
       - { label: "Updated", name: "updated", widget: "datetime", format: "YYYY-MM-DD HH:mm", required: false }
       - { label: "Cover Image", name: "image", widget: "image", required: false }
       - { label: "Tags", name: "tags", widget: "list", required: false }
       - { label: "Category", name: "category", widget: "string", required: false }
-      - { label: "Author", name: "author", widget: "string", default: "hopthurac" }
+      - { label: "Author", name: "author", widget: "string", default: "Genkun" }
       - { label: "Draft", name: "draft", widget: "boolean", default: false }
       - { label: "Lang", name: "lang", widget: "string", default: "vi" }
       - { label: "Canonical URL", name: "canonical", widget: "string", required: false }
-      - { label: "Body", name: "body", widget: "autobody" }
-
+      - { label: "Body", name: "body", widget: "markdown" }
+      - { label: "Body (Markdown, alternate)", name: "body_md", widget: "markdown", required: false }
+      
   - name: "pages"
     label: "Pages"
     folder: "src/content/pages"
@@ -78,4 +79,4 @@ collections:
     slug: "{{slug}}"
     fields:
       - { label: "Title", name: "title", widget: "string" }
-      - { label: "Body (AI)", name: "body", widget: "autobody" }
+      - { label: "Body (AI)", name: "body", widget: "markdown" }
