@@ -1,4 +1,5 @@
-
+[InvalidContentEntryDataError] blog → tai-lieu-hoc-tieng-trung- data does not match collection schema.
+  published**: **published: Expected type `"string"`, received `"date"`
 # ===============================
 # Decap CMS config cho blog.thien.ac
 # Repo: genkun/my-blog (nhánh main)
@@ -69,6 +70,7 @@ collections:
       - { label: "Lang", name: "lang", widget: "string", default: "vi" }
       - { label: "Canonical URL", name: "canonical", widget: "string", required: false }
       - { label: "Body", name: "body", widget: "autobody" }
+      - { label: "Body (Markdown)", name: "body_md", widget: "markdown", required: false }
 
   - name: "pages"
     label: "Pages"
