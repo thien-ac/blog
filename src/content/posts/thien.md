@@ -1,6 +1,6 @@
 ---
 title: thien
-published: 2025-12-29
+published: "2025-12-29"
 description: ''
 slug: tai-lieu-hoc-tieng-trung-
 image: ''
