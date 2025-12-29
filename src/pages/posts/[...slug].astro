@@ -8,7 +8,6 @@ import MainGridLayout from "@layouts/MainGridLayout.astro";
 import { getSortedPosts } from "@utils/content-utils";
 import { getDir, getPostUrlBySlug } from "@utils/url-utils";
 import { Icon } from "astro-icon/components";
-import { render } from "astro:content";
 import { licenseConfig } from "src/config";
 import ImageWrapper from "../../components/misc/ImageWrapper.astro";
 import PostMetadata from "../../components/PostMeta.astro";
@@ -18,15 +17,15 @@ import { formatDateToYYYYMMDD } from "../../utils/date-utils";
 export async function getStaticPaths() {
 	const blogEntries = await getSortedPosts();
 	return blogEntries.map((entry) => ({
-		params: { slug: entry.data.slug },
+		params: { slug: entry.slug },
 		props: { entry },
 	}));
 }
 
 const { entry } = Astro.props;
-const { Content, headings } = await render(entry);
+const { Content, headings } = await entry.render();
 
-const { remarkPluginFrontmatter } = await render(entry);
+const { remarkPluginFrontmatter } = await entry.render();
 
 const jsonLd = {
 	"@context": "https://schema.org",
@@ -39,7 +38,7 @@ const jsonLd = {
 		name: profileConfig.name,
 		url: Astro.site,
 	},
-	datePublished: formatDateToYYYYMMDD(new Date(entry.data.published)),
+	datePublished: formatDateToYYYYMMDD(entry.data.published),
 	inLanguage: entry.data.lang
 		? entry.data.lang.replace("_", "-")
 		: siteConfig.lang.replace("_", "-"),
@@ -88,8 +87,8 @@ const jsonLd = {
             <div class="onload-animation">
                 <PostMetadata
                         class="mb-5"
-                        published={new Date(entry.data.published)}
-                        updated={entry.data.updated ? new Date(entry.data.updated) : undefined}
+                        published={entry.data.published}
+                        updated={entry.data.updated}
                         tags={entry.data.tags}
                         category={entry.data.category}
                 ></PostMetadata>
@@ -107,7 +106,7 @@ const jsonLd = {
                 <Content />
             </Markdown>
 
-            {licenseConfig.enable && <License title={entry.data.title} slug={entry.data.slug} pubDate={new Date(entry.data.published)} class="mb-6 rounded-xl license-container onload-animation"></License>}
+            {licenseConfig.enable && <License title={entry.data.title} slug={entry.slug} pubDate={entry.data.published} class="mb-6 rounded-xl license-container onload-animation"></License>}
 
         </div>
     </div>

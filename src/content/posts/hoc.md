@@ -1,6 +1,5 @@
 ---
 title: hoc
-slug: hoc
 published: 2025-12-29
 description: 'hoc mai hoc nua'
 image: ''
