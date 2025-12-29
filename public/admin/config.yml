@@ -6,7 +6,7 @@
 
 backend:
   name: github
-  repo: genkun/my-blog
+  repo: thien-ac/blog
   branch: main
 
   # Dùng custom OAuth provider (serverless ở blog.thien.ac)
@@ -41,7 +41,7 @@ editor:
   visualEditing: true
 
 collections:
-  - name: "blog"
+  - name: "posts"
     label: "Bài viết"
     folder: "src/content/posts"
     create: true
