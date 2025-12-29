@@ -60,7 +60,7 @@ collections:
         widget: "autoslug"
         hint: "Tự sinh từ Title (sửa tay nếu cần)"
       - { label: "Publish Date", name: "published", widget: "datetime",  default: "{{now}}" }
-      - { label: "Updated", name: "updated", widget: "datetime",  required: false }
+      - { label: "Updated", name: "updated", widget: "datetime",  default: "{{now}} }
       - { label: "Cover Image", name: "image", widget: "image", required: false }
       - { label: "Tags", name: "tags", widget: "list", required: false }
       - { label: "Category", name: "category", widget: "string", required: false }
