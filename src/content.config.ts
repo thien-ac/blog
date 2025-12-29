@@ -3,23 +3,29 @@ import { defineCollection } from "astro:content";
 import { glob } from "astro/loaders";
 import { z } from "astro/zod";
 
-// Dùng image() để frontmatter image trở thành ImageMetadata cho Astro <Image />
-// LƯU Ý: Chuỗi trong frontmatter phải là đường dẫn TƯƠNG ĐỐI từ file .md tới src/assets/...
-// Ví dụ: bài trong src/content/posts/... thì image: ../../assets/images/cover.png
-const blog = defineCollection({
-  loader: glob({ pattern: "**/*.md", base: "src/content/posts" }),
-  schema: ({ image }) => z.object({
-    title: z.string(),
-    slug: z.string(),
-    published: z.string(),
-    updated: z.string().optional(),
-    author: z.string().optional(),
-    lang: z.string().optional(),
-    canonical: z.string().optional(),
-    category: z.string().optional(),
-    tags: z.array(z.string()).optional(),
-    image: image().optional(),      // dùng Astro assets
-  }).passthrough(),
-});
+const postsCollection = defineCollection({
+	schema: z.object({
+		title: z.string(),
+		published: z.date(),
+		updated: z.date().optional(),
+		draft: z.boolean().optional().default(false),
+		description: z.string().optional().default(""),
+		image: z.string().optional().default(""),
+		tags: z.array(z.string()).optional().default([]),
+		category: z.string().optional().nullable().default(""),
+		lang: z.string().optional().default(""),
 
-export const collections = { blog };
+		/* For internal use */
+		prevTitle: z.string().default(""),
+		prevSlug: z.string().default(""),
+		nextTitle: z.string().default(""),
+		nextSlug: z.string().default(""),
+	}),
+});
+const specCollection = defineCollection({
+	schema: z.object({}),
+});
+export const collections = {
+	posts: postsCollection,
+	spec: specCollection,
+};

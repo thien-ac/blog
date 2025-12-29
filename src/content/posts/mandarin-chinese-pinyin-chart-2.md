@@ -1,9 +1,10 @@
 ---
 title: Mandarin Chinese Pinyin Chart
 published: 2025-12-20
-updated: ""
-author: hopthurac
-slug: tai-lieu-hoc-tieng-trung-
+description: ''
+image: ''
+tags: []
+category: ''
 draft: false
 lang: vi
 ---
