@@ -53,29 +53,20 @@ collections:
     view_groups:
       - { label: "Năm đăng", field: published, pattern: "\\d{4}" }
     fields:
-      - { label: "ID", name: "id", widget: "ulid" }
       - { label: "Title", name: "title", widget: "string" }
       - label: "Slug (URL)"
         name: "slug"
-        widget: "autoslug"
-        hint: "Tự sinh từ Title"
-      - { label: "Publish Date", name: "published", widget: "datetime", format: "YYYY-MM-DD HH:mm", default: "{{now}}" }
-      - { label: "Updated", name: "updated", widget: "datetime", format: "YYYY-MM-DD HH:mm", required: false }
+        widget: "string"
+        hint: "URL slug for the post"
+      - { label: "Publish Date", name: "published", widget: "datetime", format: "YYYY-MM-DD", default: "{{now}}" }
+      - { label: "Updated", name: "updated", widget: "datetime", format: "YYYY-MM-DD", required: false }
+      - { label: "Description", name: "description", widget: "string", required: false }
       - { label: "Cover Image", name: "image", widget: "image", required: false }
       - { label: "Tags", name: "tags", widget: "list", required: false }
       - { label: "Category", name: "category", widget: "string", required: false }
-      - { label: "Author", name: "author", widget: "string", default: "hopthurac" }
       - { label: "Draft", name: "draft", widget: "boolean", default: false }
       - { label: "Lang", name: "lang", widget: "string", default: "vi" }
-      - { label: "Canonical URL", name: "canonical", widget: "string", required: false }
-      - { label: "Body", name: "body", widget: "autobody" }
-
-  - name: "pages"
-    label: "Pages"
-    folder: "src/content/pages"
-    create: true
-    extension: "md"
-    slug: "{{slug}}"
-    fields:
-      - { label: "Title", name: "title", widget: "string" }
-      - { label: "Body (AI)", name: "body", widget: "autobody" }
+      - label: "Body"
+        name: "body"
+        widget: "markdown"
+        hint: "Content with Markdown extended features"
