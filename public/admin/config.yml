@@ -57,10 +57,10 @@ collections:
       - { label: "Title", name: "title", widget: "string" }
       - label: "Slug (URL)"
         name: "slug"
-        widget: "string"
+        widget: "autoslug"
         hint: "Tự sinh từ Title (sửa tay nếu cần)"
-      - { label: "Publish Date", name: "published", widget: "datetime", format: "YYYY-MM-DD HH:mm", default: "{{now}}" }
-      - { label: "Updated", name: "updated", widget: "datetime", format: "YYYY-MM-DD HH:mm", required: false }
+      - { label: "Publish Date", name: "published", widget: "datetime", format: "YYYY-MM-DD", default: "{{now}}" }
+      - { label: "Updated", name: "updated", widget: "datetime", format: "YYYY-MM-DD", required: false }
       - { label: "Cover Image", name: "image", widget: "image", required: false }
       - { label: "Tags", name: "tags", widget: "list", required: false }
       - { label: "Category", name: "category", widget: "string", required: false }
