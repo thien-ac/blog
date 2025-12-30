@@ -5,7 +5,7 @@
 
 backend:
   name: github
-  repo: genkun/my-blog      # Giữ repo hiện có của bạn
+  repo: thien-ac/blog      # Giữ repo hiện có của bạn
   branch: main
 
   # Bật squash merge khi publish PR (GitHub)
