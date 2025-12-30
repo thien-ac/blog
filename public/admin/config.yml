@@ -64,9 +64,12 @@ collections:
       - { label: "Draft", name: "draft", widget: "boolean", default: false }
       - { label: "Lang", name: "lang", widget: "string", default: "vi" }
       - { label: "Canonical URL", name: "canonical", widget: "string", required: false }
-      # Body markdown tiêu chuẩn (có thể đổi sang widget 'ai' nếu muốn AI ghi trực tiếp)
+      # Chọn nguồn nội dung: nhập tay hoặc AI
+      - { label: "Nội dung (nguồn)", name: "body_source", widget: "select", options: [ { label: "Nhập tay", value: "manual" }, { label: "AI tự động", value: "ai" } ], default: "manual" }
+      # Body markdown tiêu chuẩn
       - { label: "Body", name: "body", widget: "markdown" }
-      - { label: "Body (AI)", name: "body_ai", widget: "autobody" }
+      # Body (AI): nơi AI ghi nội dung, sẽ copy sang `body` khi chọn nguồn = AI lúc lưu
+      - { label: "Body (AI)", name: "body_ai", widget: "autobody", required: false }
       
   - name: "pages"
     label: "Pages"

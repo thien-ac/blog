@@ -419,6 +419,15 @@
           // Đánh dấu đã auto-fill để lần lưu sau không gọi lại
           try { localStorage.setItem(autofillKey, '1'); } catch(e){}
 
+          // Nếu người dùng chọn nguồn = AI thì copy `body_ai` sang `body` trước khi lưu
+          try {
+            const source = String(data.get('body_source') || 'manual');
+            if (source === 'ai') {
+              const aiText = String(data.get('body_ai') || '').trim();
+              if (aiText) data = data.set('body', aiText);
+            }
+          } catch(e) {}
+
           return data;
         }
       });
