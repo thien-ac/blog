@@ -1,27 +1,21 @@
 
 # ===============================
-# Decap CMS config cho blog.thien.ac
-# Repo: genkun/my-blog (nhánh main)
+# Decap CMS config (đã bổ sung)
 # ===============================
 
 backend:
   name: github
-  repo: thien-ac/blog
+  repo: genkun/my-blog      # Giữ repo hiện có của bạn
   branch: main
 
-  # Dùng custom OAuth provider (serverless ở blog.thien.ac)
-  # => /api/oauth (index.js) sẽ 302 tới GitHub authorize
-  base_url: https://blog.thien.ac
-  auth_endpoint: /api/oauth
-
-  # Client ID & scope gửi kèm khi dùng custom provider
-  auth:
-    client_id: ${OAUTH_CLIENT_ID}   # đặt biến env hoặc thay giá trị thật
-    scope: repo
-
-# Thông điệp commit (đặt ở CẤP CAO NHẤT, không nằm trong backend)
+  # Bật squash merge khi publish PR (GitHub)
   squash_merges: true
-  preview_context: vercel/deployment
+
+  # Nếu bạn có deploy preview, chọn context phù hợp:
+  # preview_context: vercel/deployment
+  # preview_context: netlify/build
+
+  # Chuẩn hoá commit messages (nằm dưới backend)
   commit_messages:
     create: 'content({{collection}}): add "{{slug}}"'
     update: 'content({{collection}}): update "{{slug}}"'
@@ -30,12 +24,11 @@ backend:
     deleteMedia: 'assets: remove "{{path}}"'
     openAuthoring: '{{message}}'
 
-# Lưu ảnh trong repo & dùng ảnh trên site
-media_folder: "src/assets/images"
-public_folder: "/src/assets/images"   # đổi lại nếu site thực sự dùng /src/assets/images
-
-# (Khuyên dùng cho nhóm) thêm workflow nháp/duyệt/xuất bản bằng PR
+# Chế độ publish qua PR: Draft → Review → Publish
 publish_mode: editorial_workflow
+
+media_folder: "src/assets/images"
+public_folder: "/src/assets/images"
 
 editor:
   visualEditing: true
@@ -46,31 +39,31 @@ collections:
     folder: "src/content/posts"
     create: true
     extension: "md"
-    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"
+    slug: "{{year}}-{{month}}-{{day}}-{{slug}}"   # ghép ngày + slug
     summary: "{{title}} — {{year}}/{{month}}/{{day}}"
     view_filters:
       - { label: "Drafts", field: draft, pattern: true }
     view_groups:
       - { label: "Năm đăng", field: published, pattern: "\\d{4}" }
     fields:
-      - { label: "ID", name: "id", widget: "ulid" }
+      - { label: "ID", name: "id", widget: "ulid" }          # widget tuỳ biến
       - { label: "Title", name: "title", widget: "string" }
       - label: "Slug (URL)"
         name: "slug"
-        widget: "autoslug"
-        hint: "Tự sinh từ Title (sửa tay nếu cần)"
-      - { label: "Publish Date", name: "published", widget: "datetime", format: "YYYY-MM-DD HH:mm", default: "{{now}}" }
-      - { label: "Updated", name: "updated", widget: "datetime", format: "YYYY-MM-DD HH:mm", required: false }
+        widget: "slugify"                                     # widget slugify
+        hint: "Sinh từ 'Title'"
+      - { label: "Publish Date", name: "published", widget: "datetime", format: "YYYY-MM-DD" }
+      - { label: "Updated", name: "updated", widget: "datetime", format: "YYYY-MM-DD", required: false }
       - { label: "Cover Image", name: "image", widget: "image", required: false }
       - { label: "Tags", name: "tags", widget: "list", required: false }
       - { label: "Category", name: "category", widget: "string", required: false }
-      - { label: "Author", name: "author", widget: "string", default: "Genkun" }
+      - { label: "Author", name: "author", widget: "string", default: "hopthurac" }
       - { label: "Draft", name: "draft", widget: "boolean", default: false }
       - { label: "Lang", name: "lang", widget: "string", default: "vi" }
       - { label: "Canonical URL", name: "canonical", widget: "string", required: false }
-      - { label: "Body (AI)", name: "body", widget: "autobody" }
-      - { label: "Body (Markdown, alternate)", name: "body_md", widget: "markdown", required: false }
-      
+      # Body markdown tiêu chuẩn (có thể đổi sang widget 'ai' nếu muốn AI ghi trực tiếp)
+      - { label: "Body", name: "body", widget: "markdown" }
+
   - name: "pages"
     label: "Pages"
     folder: "src/content/pages"
@@ -79,4 +72,5 @@ collections:
     slug: "{{slug}}"
     fields:
       - { label: "Title", name: "title", widget: "string" }
-      - { label: "Body (AI)", name: "body", widget: "markdown" }
+      # Dùng widget AI để tạo nội dung nhanh
+      - { label: "Body (AI)", name: "body", widget: "ai" }
