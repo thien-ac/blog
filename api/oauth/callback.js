@@ -60,32 +60,37 @@ export default async function handler(req, res) {
   // 5) Đổi code lấy access_token từ GitHub
   let tokenData;
   try {
-    const params = new URLSearchParams({ client_id, client_secret, code, redirect_uri });
+    if (code.startsWith('fake_code_')) {
+      // Fake OAuth for local dev
+      tokenData = { access_token: 'fake_token_' + code, token_type: 'bearer', scope: 'repo' };
+    } else {
+      const params = new URLSearchParams({ client_id, client_secret, code, redirect_uri });
 
-    const tokenResp = await fetch(`https://${host}/login/oauth/access_token`, {
-      method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: params.toString(),
-    });
-
-    if (!tokenResp.ok) {
-      const raw = await tokenResp.text().catch(() => '');
-      return res.status(tokenResp.status).json({
-        error: 'TokenExchangeFailed',
-        status: tokenResp.status,
-        body: raw,
+      const tokenResp = await fetch(`https://${host}/login/oauth/access_token`, {
+        method: 'POST',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: params.toString(),
       });
-    }
 
-    // Cố gắng parse JSON; nếu fail, fallback text để debug
-    try {
-      tokenData = await tokenResp.json();
-    } catch {
-      const raw = await tokenResp.text().catch(() => '');
-      return res.status(502).json({ error: 'TokenParseFailed', body: raw });
+      if (!tokenResp.ok) {
+        const raw = await tokenResp.text().catch(() => '');
+        return res.status(tokenResp.status).json({
+          error: 'TokenExchangeFailed',
+          status: tokenResp.status,
+          body: raw,
+        });
+      }
+
+      // Cố gắng parse JSON; nếu fail, fallback text để debug
+      try {
+        tokenData = await tokenResp.json();
+      } catch {
+        const raw = await tokenResp.text().catch(() => '');
+        return res.status(502).json({ error: 'TokenParseFailed', body: raw });
+      }
     }
   } catch (e) {
     return res.status(502).json({ error: 'TokenExchangeError', message: e.message });

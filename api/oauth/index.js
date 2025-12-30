@@ -15,7 +15,10 @@ export default async function handler(req, res) {
     const scope     = process.env.OAUTH_SCOPE || 'repo';
     const host      = process.env.OAUTH_HOSTNAME || 'github.com';
 
-    if (!client_id || !siteUrl) {
+    // Allow fake OAuth for local dev
+    const useFake = process.env.DEV_USE_FAKE_OAUTH === '1';
+
+    if (!useFake && (!client_id || !siteUrl)) {
       console.error('MissingEnv', { client_id: !!client_id, siteUrl: !!siteUrl });
       return res.status(500).json({
         error: 'MissingEnv',
@@ -34,16 +37,24 @@ export default async function handler(req, res) {
       `oauth_origin=${encodeURIComponent(origin)}; Path=/; Max-Age=600; SameSite=Lax; ${secureFlag}HttpOnly`,
     ]);
 
-    const redirect_uri = `${siteUrl}/api/oauth/callback?origin=${encodeURIComponent(origin)}`;
+    if (useFake) {
+      // Fake OAuth: directly redirect to callback with fake code
+      const fakeCode = 'fake_code_' + state;
+      const redirect_uri = `${siteUrl}/api/oauth/callback?code=${fakeCode}&state=${state}&origin=${encodeURIComponent(origin)}`;
+      console.log('Fake OAuth redirect:', redirect_uri);
+      res.status(302).setHeader('Location', redirect_uri).end();
+    } else {
+      const redirect_uri = `${siteUrl}/api/oauth/callback?origin=${encodeURIComponent(origin)}`;
 
-    const authorizeUrl = new URL(`https://${host}/login/oauth/authorize`);
-    authorizeUrl.searchParams.set('client_id', client_id);
-    authorizeUrl.searchParams.set('redirect_uri', redirect_uri);
-    authorizeUrl.searchParams.set('scope', scope);
-    authorizeUrl.searchParams.set('state', state);
+      const authorizeUrl = new URL(`https://${host}/login/oauth/authorize`);
+      authorizeUrl.searchParams.set('client_id', client_id);
+      authorizeUrl.searchParams.set('redirect_uri', redirect_uri);
+      authorizeUrl.searchParams.set('scope', scope);
+      authorizeUrl.searchParams.set('state', state);
 
-    console.log('Authorize URL:', authorizeUrl.toString());
-    res.status(302).setHeader('Location', authorizeUrl.toString()).end();
+      console.log('Authorize URL:', authorizeUrl.toString());
+      res.status(302).setHeader('Location', authorizeUrl.toString()).end();
+    }
   } catch (err) {
     console.error('OAuth start crash:', err);
     res.status(500).json({ error: 'ServerError', message: err?.message || String(err) });
