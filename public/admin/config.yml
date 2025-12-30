@@ -66,7 +66,8 @@ collections:
       - { label: "Canonical URL", name: "canonical", widget: "string", required: false }
       # Body markdown tiêu chuẩn (có thể đổi sang widget 'ai' nếu muốn AI ghi trực tiếp)
       - { label: "Body", name: "body", widget: "markdown" }
-
+      - { label: "Body (AI)", name: "body", widget: "autobody" }
+      
   - name: "pages"
     label: "Pages"
     folder: "src/content/pages"
