@@ -7,7 +7,10 @@ backend:
   name: github
   repo: thien-ac/blog      # Giữ repo hiện có của bạn
   branch: main
-
+ # Client ID & scope gửi kèm khi dùng custom provider
+  auth:
+    client_id: ${OAUTH_CLIENT_ID}   # đặt biến env hoặc thay giá trị thật
+    scope: repo
   # Bật squash merge khi publish PR (GitHub)
   squash_merges: true
 
