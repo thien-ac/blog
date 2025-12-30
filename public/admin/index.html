@@ -404,10 +404,10 @@
           const autofillKey = getAutofillKey();
           const already = localStorage.getItem(autofillKey) === '1';
 
-          // body
-          const body = String(data.get('body') || '').trim();
-          if (title && !body && !already) {
-            try { const content = await aiWriteFromTitle(title); if (content) data = data.set('body', content); } catch(e){}
+          // body_ai: nếu chưa có `body_ai` thì gọi AI và điền vào `body_ai` (không overwrite `body`)
+          const bodyAi = String(data.get('body_ai') || '').trim();
+          if (title && !bodyAi && !already) {
+            try { const content = await aiWriteFromTitle(title); if (content) data = data.set('body_ai', content); } catch(e){}
           }
 
           // cover
