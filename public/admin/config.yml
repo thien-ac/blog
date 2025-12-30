@@ -24,18 +24,6 @@ backend:
   # Bật squash merge khi publish PR (GitHub)
   squash_merges: true
 
-  # Nếu bạn có deploy preview, chọn context phù hợp:
-  # preview_context: vercel/deployment
-  # preview_context: netlify/build
-
-  # Chuẩn hoá commit messages (nằm dưới backend)
-  commit_messages:
-    create: 'content({{collection}}): add "{{slug}}"'
-    update: 'content({{collection}}): update "{{slug}}"'
-    delete: 'content({{collection}}): delete "{{slug}}"'
-    uploadMedia: 'assets: add "{{path}}"'
-    deleteMedia: 'assets: remove "{{path}}"'
-    openAuthoring: '{{message}}'
 
 # Chế độ publish qua PR: Draft → Review → Publish
 publish_mode: editorial_workflow
