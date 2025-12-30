@@ -11,9 +11,14 @@ backend:
   auth:
     client_id: ${OAUTH_CLIENT_ID}   # đặt biến env hoặc thay giá trị thật
     scope: repo
-  # Thông điệp commit (đặt ở CẤP CAO NHẤT, không nằm trong backend)
+  # Bật squash merge khi publish PR (GitHub)
   squash_merges: true
-  preview_context: vercel/deployment
+
+  # Nếu bạn có deploy preview, chọn context phù hợp:
+  # preview_context: vercel/deployment
+  # preview_context: netlify/build
+
+  # Chuẩn hoá commit messages (nằm dưới backend)
   commit_messages:
     create: 'content({{collection}}): add "{{slug}}"'
     update: 'content({{collection}}): update "{{slug}}"'
@@ -21,9 +26,6 @@ backend:
     uploadMedia: 'assets: add "{{path}}"'
     deleteMedia: 'assets: remove "{{path}}"'
     openAuthoring: '{{message}}'
-  # Bật squash merge khi publish PR (GitHub)
-  squash_merges: true
-
 
 # Chế độ publish qua PR: Draft → Review → Publish
 publish_mode: editorial_workflow
