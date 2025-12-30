@@ -55,8 +55,8 @@ collections:
         name: "slug"
         widget: "slugify"                                     # widget slugify
         hint: "Sinh từ 'Title'"
-      - { label: "Publish Date", name: "published", widget: "Date", format: "YYYY-MM-DD" }
-      - { label: "Updated", name: "updated", widget: "Date", format: "YYYY-MM-DD", required: false }
+      - { label: "Publish Date", name: "published", widget: "datetime", format: "YYYY-MM-DD" }
+      - { label: "Updated", name: "updated", widget: "datetime", format: "YYYY-MM-DD", required: false }
       - { label: "Cover Image", name: "image", widget: "image", required: false }
       - { label: "Tags", name: "tags", widget: "list", required: false }
       - { label: "Category", name: "category", widget: "string", required: false }
