@@ -7,6 +7,8 @@ backend:
   name: github
   repo: thien-ac/blog      # Giữ repo hiện có của bạn
   branch: main
+  base_url: https://blog.thien.ac
+  auth_endpoint: /api/oauth
  # Client ID & scope gửi kèm khi dùng custom provider
   auth:
     client_id: ${OAUTH_CLIENT_ID}   # đặt biến env hoặc thay giá trị thật
