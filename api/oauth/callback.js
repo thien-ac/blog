@@ -41,13 +41,13 @@ export default async function handler(req, res) {
 
   // origin: ưu tiên query, fallback cookie, cuối cùng SITE_URL
   let originFromCookie = '';
-  try { originFromCookie = cookies.oauth_origin ? decodeURIComponent(coocookies.oauth_origin ''; } catch {}
+  try { originFromCookie = cookies.oauth_origin ? decodeURIComponent(cookies.oauth_origin) : ''; } catch {}
   const originFromQuery = (req.query.origin && String(req.query.origin)) || '';
   const targetOrigin    = originFromQuery || originFromCookie || siteUrl;
 
   // 3) Xác thực CSRF state (khuyến nghị: chặn nếu mismatch)
   let savedState = '';
-  try { savedState = cookies.oauth_state ? decodeURIComponent(coocookies.oauth_state ''; } catch {}
+  try { savedState = cookies.oauth_state ? decodeURIComponent(cookies.oauth_state) : ''; } catch {}
   if (!savedState || savedState !== state) {
     // Bật nới lỏng khi debug: chỉ cảnh báo thay vì chặn
     // console.warn('State mismatch:', { savedState, state });
