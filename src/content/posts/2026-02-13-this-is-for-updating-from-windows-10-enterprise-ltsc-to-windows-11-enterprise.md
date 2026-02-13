@@ -3,13 +3,18 @@ id: 01KHC0YSGECV5PC0DSBWFXGAJJ
 title: This is for updating from Windows 10 Enterprise LTSC to Windows 11 Enterprise.
 slug: this-is-for-updating-from-windows-10-enterprise-ltsc-to-windows-11-enterprise
 published: 2026-02-14
-updated: 2026-02-14 00:43
+updated: 2026-02-14 00:44
 author: Genkun
 draft: false
 lang: vi
 body_source: ai
 ---
-This is for updating from Windows 10 Enterprise LTSC to Windows 11 Enterprise.
+
+
+
+\##This is for updating from Windows 10 Enterprise LTSC to Windows 11 Enterprise.
+
+<iframe width="560" height="315" src="https://www.youtube.com/embed/b9kFD3cFjhU?si=JwKeEyY2du82Clji" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>
 
  github: https://github.com/AveYo/MediaCreationTool.bat
 
